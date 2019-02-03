@@ -5,6 +5,10 @@
 extern "C" {
 #endif
 
+#define KUSOKURAE_DECK_SIZE         33
+#define KUSOKURAE_MAX_HAND_CARDS    22
+#define KUSOKURAE_MAX_PLAYERS       4
+
 typedef struct {
     int np; // Number of players (3 or 4)
 } kusokurae_game_config_t;
@@ -42,6 +46,12 @@ typedef enum {
 } kusokurae_card_suit_t;
 
 typedef struct {
+    // Sequence in the new, unshuffled deck. Higher value precedes lower
+    // e.g. The most newby card, Ghost, has a display_order of 33.
+    // 0 indicates invalid data (unfilled slot).
+    // Should be filled during global initialization and copied afterwards.
+    unsigned display_order;
+
     // Declared above
     kusokurae_card_suit_t suit;
 
@@ -65,7 +75,7 @@ typedef struct {
     kusokurae_round_status_t active;
 
     // 22 card slots (reserved for playing with 2 decks)
-    kusokurae_card_t hand[22];
+    kusokurae_card_t hand[KUSOKURAE_MAX_HAND_CARDS];
 
     // The number of valid cards in hand.
     // When a card is played, it is removed from hand and all following cards
@@ -81,7 +91,10 @@ typedef struct {
 } kusokurae_player_t;
 
 typedef enum {
-    KUSOKURAE_ERROR_NONE,
+    KUSOKURAE_SUCCESS,
+    KUSOKURAE_ERROR_NULLPTR,
+    KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS,
+    KUSOKURAE_ERROR_UNINITIALIZED,
 } kusokurae_error_t;
 
 typedef struct {
@@ -89,7 +102,7 @@ typedef struct {
     kusokurae_game_status_t status;
 
     // Max 4 players
-    kusokurae_player_t players[4];
+    kusokurae_player_t players[KUSOKURAE_MAX_PLAYERS];
 
     // Active player (0~3) - only valid if status is PLAY
     int active_player_index;
@@ -97,9 +110,12 @@ typedef struct {
     // Finished round count
     int nround;
 
+    // Who has the ghost in hand?
+    int ghost_holder_index;
+
     // Cards played in the current round.
     // players[n]'s move is placed in current_round[n].
-    kusokurae_card_t current_round[4];
+    kusokurae_card_t current_round[KUSOKURAE_MAX_PLAYERS];
 } kusokurae_game_state_t;
 
 typedef struct {
@@ -116,7 +132,10 @@ typedef struct {
     int leader;
 } kusokurae_round_state_t;
 
-kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self);
+void kusokurae_global_init();
+
+kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
+                                      kusokurae_game_config_t *cfg);
 
 kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self);
 
