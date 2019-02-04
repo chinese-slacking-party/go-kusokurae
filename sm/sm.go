@@ -7,6 +7,7 @@ import "C"
 
 import (
 	"errors"
+	"unsafe"
 )
 
 // Enum: kusokurae_game_status_t
@@ -15,6 +16,7 @@ const (
 	StatusInit
 	StatusPlay
 	StatusFinish
+
 	StatusMax
 )
 
@@ -39,9 +41,11 @@ var (
 	ErrNullPtr       = errors.New("KUSOKURAE_ERROR_NULLPTR")
 	ErrBadNPlayers   = errors.New("KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS")
 	ErrUninitialized = errors.New("KUSOKURAE_ERROR_UNINITIALIZED")
+
+	ErrUnknown = errors.New("Unknown")
 )
 
-var errMap = map[C.int]error{
+var errMap = map[C.kusokurae_error_t]error{
 	C.KUSOKURAE_SUCCESS:                     nil,
 	C.KUSOKURAE_ERROR_NULLPTR:               ErrNullPtr,
 	C.KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS: ErrBadNPlayers,
@@ -89,4 +93,23 @@ type RoundState struct {
 	IsDoubled    bool
 	ScoreOnBoard int
 	Leader       *Player
+}
+
+func errcode2Go(code C.kusokurae_error_t) (err error) {
+	err, ok := errMap[code]
+	if !ok {
+		err = ErrUnknown
+	}
+	return
+}
+
+func NewGame(cfg GameConfig) (ret *GameState, err error) {
+	ret = &GameState{}
+	pret := unsafe.Pointer(ret)
+	pcfg := unsafe.Pointer(&cfg)
+	err = errcode2Go(C.kusokurae_game_init(
+		(*C.kusokurae_game_state_t)(pret),
+		(*C.kusokurae_game_config_t)(pcfg),
+	))
+	return
 }
