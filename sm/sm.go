@@ -24,12 +24,15 @@ const (
 	StatusMax
 )
 
-// Enum: kusokurae_card_suit_t
+// Suit is equivalent to C.kusokurae_card_suit_t.
+type Suit int32
+
+// Suit values.
 const (
-	SuitXiang   int32 = -1
-	SuitYoutiao       = 0
-	SuitBaozi         = 1
-	SuitOther         = 2
+	SuitXiang   Suit = -1
+	SuitYoutiao      = 0
+	SuitBaozi        = 1
+	SuitOther        = 2
 )
 
 // Enum: kusokurae_round_status_t
@@ -64,8 +67,8 @@ type GameConfig struct {
 // Card has the same memory layout with C.kusokurae_card_t.
 type Card struct {
 	displayOrder uint32
-	Suit         int32 // C.kusokurae_card_suit_t
-	Rank         int32
+	suit         Suit
+	rank         int32
 }
 
 // Player has the same memory layout with C.kusokurae_player_t.
@@ -104,6 +107,16 @@ func errcode2Go(code C.kusokurae_error_t) (err error) {
 		err = ErrUnknown
 	}
 	return
+}
+
+// GetSuit returns the Card's intrinsic value.
+func (p *Card) GetSuit() Suit {
+	return p.suit
+}
+
+// GetRank returns the Card's relative power.
+func (p *Card) GetRank() int {
+	return int(p.rank)
 }
 
 // GetHandCards returns a slice holding the player's cards. It operates in
