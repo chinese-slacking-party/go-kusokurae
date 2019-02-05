@@ -81,7 +81,6 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
     if (cfg->np < 3 || cfg->np > 4) {
         return KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS;
     }
-    memset(self, 0, sizeof(kusokurae_game_state_t));
     memcpy(&self->cfg, cfg, sizeof(kusokurae_game_config_t));
     self->status = KUSOKURAE_STATUS_INIT;
 
@@ -120,8 +119,9 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].hand, self->players[2].hand);
     }
 
+    int i;
     // Set up player data and find the ghost holder.
-    for (int i = 0; i < self->cfg.np; i++) {
+    for (i = 0; i < self->cfg.np; i++) {
         //print_cards(self->players[i].hand, counteach);
         self->players[i].index = i + 1;
         self->players[i].active = KUSOKURAE_ROUND_WAITING;
@@ -132,9 +132,15 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
             self->ghost_holder_index = i;
         }
     }
+    for (; i < KUSOKURAE_MAX_PLAYERS; i++) {
+        memset(&self->players[i], 0, sizeof(kusokurae_player_t));
+    }
 
+    memset(&self->current_round, 0, sizeof(self->current_round));
     // It's 1P (players[0])'s turn now
     self->players[0].active = KUSOKURAE_ROUND_ACTIVE;
     self->status = KUSOKURAE_STATUS_PLAY;
+    self->active_player_index = 0;
+    self->nround = 0;
     return KUSOKURAE_SUCCESS;
 }
