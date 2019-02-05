@@ -106,9 +106,6 @@ typedef struct {
     // Max 4 players
     kusokurae_player_t players[KUSOKURAE_MAX_PLAYERS];
 
-    // Active player (0~3) - only valid if status is PLAY
-    int32_t active_player_index;
-
     // Finished round count
     int32_t nround;
 

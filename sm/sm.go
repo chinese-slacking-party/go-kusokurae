@@ -80,13 +80,12 @@ type Player struct {
 
 // GameState has the same memory layout with C.kusokurae_game_state_t.
 type GameState struct {
-	cfg          GameConfig
-	status       int32
-	players      [C.KUSOKURAE_MAX_PLAYERS]Player
-	activePlayer int32
-	numRound     int32
-	ghostHolder  int32
-	curRound     [C.KUSOKURAE_MAX_PLAYERS]Card
+	cfg         GameConfig
+	status      int32
+	players     [C.KUSOKURAE_MAX_PLAYERS]Player
+	numRound    int32
+	ghostHolder int32
+	curRound    [C.KUSOKURAE_MAX_PLAYERS]Card
 }
 
 // RoundState corresponds to C.kusokurae_round_state_t, but does not preserve
@@ -107,6 +106,7 @@ func errcode2Go(code C.kusokurae_error_t) (err error) {
 	return
 }
 
+// NewGame creates a new game state with specified number of players.
 func NewGame(cfg GameConfig) (ret *GameState, err error) {
 	ret = &GameState{}
 	pret := unsafe.Pointer(ret)
@@ -115,5 +115,13 @@ func NewGame(cfg GameConfig) (ret *GameState, err error) {
 		(*C.kusokurae_game_state_t)(pret),
 		(*C.kusokurae_game_config_t)(pcfg),
 	))
+	return
+}
+
+// Start deals cards to each player and begins waiting for play from the first
+// player.
+func (g *GameState) Start() (err error) {
+	pg := unsafe.Pointer(g)
+	err = errcode2Go(C.kusokurae_game_start((*C.kusokurae_game_state_t)(pg)))
 	return
 }

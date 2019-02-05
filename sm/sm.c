@@ -140,7 +140,6 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     // It's 1P (players[0])'s turn now
     self->players[0].active = KUSOKURAE_ROUND_ACTIVE;
     self->status = KUSOKURAE_STATUS_PLAY;
-    self->active_player_index = 0;
     self->nround = 0;
     return KUSOKURAE_SUCCESS;
 }
