@@ -54,8 +54,8 @@ typedef struct {
     // Should be filled during global initialization and copied afterwards.
     uint32_t display_order;
 
-    // Declared above
-    kusokurae_card_suit_t suit;
+    // Declared above (kusokurae_card_suit_t)
+    int32_t suit;
 
     // 0~10 for BAOZI
     // 0~9 for YOUTIAO and XIANG
@@ -74,7 +74,7 @@ typedef struct {
     int32_t index;
 
     // 1 - active (playing), 2 - already played
-    kusokurae_round_status_t active;
+    int32_t active;
 
     // 22 card slots (reserved for playing with 2 decks)
     kusokurae_card_t hand[KUSOKURAE_MAX_HAND_CARDS];
@@ -101,7 +101,7 @@ typedef enum {
 
 typedef struct {
     kusokurae_game_config_t cfg;
-    kusokurae_game_status_t status;
+    int32_t status;
 
     // Max 4 players
     kusokurae_player_t players[KUSOKURAE_MAX_PLAYERS];

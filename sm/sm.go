@@ -16,7 +16,7 @@ func init() {
 
 // Enum: kusokurae_game_status_t
 const (
-	StatusNull = iota
+	StatusNull int32 = iota
 	StatusInit
 	StatusPlay
 	StatusFinish
@@ -26,15 +26,15 @@ const (
 
 // Enum: kusokurae_card_suit_t
 const (
-	SuitXiang   = -1
-	SuitYoutiao = 0
-	SuitBaozi   = 1
-	SuitOther   = 2
+	SuitXiang   int32 = -1
+	SuitYoutiao       = 0
+	SuitBaozi         = 1
+	SuitOther         = 2
 )
 
 // Enum: kusokurae_round_status_t
 const (
-	RoundWaiting = iota
+	RoundWaiting int32 = iota
 	RoundActive
 	RoundDone
 )
