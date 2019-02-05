@@ -99,6 +99,9 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         return KUSOKURAE_ERROR_UNINITIALIZED;
     }
 
+    // Deck should be already prepared in kusokurae_global_init().
+    // Here we pick the useful part: the whole deck (if there're 3 players) or
+    // the deck with one Angel removed (if there're 4 players).
     kusokurae_card_t *deck_base = DECK;
     size_t count = KUSOKURAE_DECK_SIZE;
     if (self->cfg.np == 4) {
@@ -106,6 +109,8 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         count--;
     }
     size_t counteach = count / self->cfg.np;
+    // At most two remainder areas are used.
+    // TODO: more flexible card assignment (e.g. 5~6 players, 2 decks)
     kusokurae_card_t remaining[KUSOKURAE_DECK_SIZE], remaining2[KUSOKURAE_DECK_SIZE];
     sample(deck_base, count, sizeof(kusokurae_card_t), counteach, self->players[0].hand, remaining);
     if (self->cfg.np == 4) {
@@ -114,6 +119,8 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     } else {
         sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].hand, self->players[2].hand);
     }
+
+    // Set up player data and find the ghost holder.
     for (int i = 0; i < self->cfg.np; i++) {
         //print_cards(self->players[i].hand, counteach);
         self->players[i].index = i + 1;
@@ -126,6 +133,7 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         }
     }
 
+    // It's 1P (players[0])'s turn now
     self->players[0].active = KUSOKURAE_ROUND_ACTIVE;
     self->status = KUSOKURAE_STATUS_PLAY;
     return KUSOKURAE_SUCCESS;
