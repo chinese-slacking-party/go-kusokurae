@@ -41,15 +41,16 @@ func TestGameStart(t *testing.T) {
 	t.Log(state.players[0].Hand)
 	t.Log(state.players[1].Hand)
 	t.Log(state.players[2].Hand)
-	var cards [33]bool
+	cards := make(map[uint32]bool)
 	var i, j int
 	var order uint32
 	for i = 0; i < 3; i++ {
 		for j = 0; j < 11; j++ {
-			order = state.players[i].Hand[j].DisplayOrder - 1
+			order = state.players[i].Hand[j].DisplayOrder
 			if cards[order] {
 				t.Errorf("Duplicate card %+v", state.players[i].Hand[j])
 			}
+			cards[order] = true
 		}
 	}
 }
