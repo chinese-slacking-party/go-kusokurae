@@ -34,12 +34,27 @@ void print_card(kusokurae_card_t *p) {
 
 int main(int argc, char *argv[]) {
     std::printf("Starting kusokurae engine test...\n\n");
+    std::printf("Sizes of data structures:\n");
+    std::printf("kusokurae_game_config_t: %d\n", sizeof(kusokurae_game_config_t));
+    std::printf("kusokurae_card_t: %d\n", sizeof(kusokurae_card_t));
+    std::printf("kusokurae_player_t: %d\n", sizeof(kusokurae_player_t));
+    std::printf("kusokurae_game_state_t: %d\n", sizeof(kusokurae_game_state_t));
+    std::printf("kusokurae_round_state_t: %d\n", sizeof(kusokurae_round_state_t));
     kusokurae_global_init();
-    
+
     kusokurae_game_config_t cfg = { 4 };
     kusokurae_game_state_t g;
     kusokurae_game_init(&g, &cfg);
+
+    int i, j;
     kusokurae_game_start(&g);
+    for (i = 0; i < 4; i++) {
+        std::printf("\n%dP's cards:\n", i + 1);
+        for (j = 0; j < 8; j++) {
+            print_card(&g.players[i].hand[j]);
+        }
+    }
+    std::printf("\n%dP has the ghost\n", g.ghost_holder_index + 1);
 }
 
 #endif // WHATEVER_YOU_WANT_TO_INDICATE_CGO
