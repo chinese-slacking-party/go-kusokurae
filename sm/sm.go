@@ -63,19 +63,19 @@ type GameConfig struct {
 
 // Card has the same memory layout with C.kusokurae_card_t.
 type Card struct {
-	DisplayOrder uint32
+	displayOrder uint32
 	Suit         int32 // C.kusokurae_card_suit_t
 	Rank         int32
 }
 
 // Player has the same memory layout with C.kusokurae_player_t.
 type Player struct {
-	Index      int32
-	Active     int32 // C.kusokurae_round_status_t
-	Hand       [C.KUSOKURAE_MAX_HAND_CARDS]Card
-	NumCards   int32
-	CardsTaken int32
-	Score      int32
+	index      int32
+	active     int32 // C.kusokurae_round_status_t
+	hand       [C.KUSOKURAE_MAX_HAND_CARDS]Card
+	numCards   int32
+	cardsTaken int32
+	score      int32
 }
 
 // GameState has the same memory layout with C.kusokurae_game_state_t.
@@ -109,7 +109,7 @@ func errcode2Go(code C.kusokurae_error_t) (err error) {
 // GetHandCards returns a slice holding the player's cards. It operates in
 // constant time.
 func (p *Player) GetHandCards() []Card {
-	return p.Hand[0:p.NumCards]
+	return p.hand[0:p.numCards]
 }
 
 // NewGame creates a new game state with specified number of players.
@@ -135,7 +135,7 @@ func (g *GameState) Start() (err error) {
 // IsFinalRound checks if the game is in (or after) its last round.
 func (g *GameState) IsFinalRound() bool {
 	for i := range g.players {
-		if g.players[i].NumCards > 1 {
+		if g.players[i].numCards > 1 {
 			return false
 		}
 	}
