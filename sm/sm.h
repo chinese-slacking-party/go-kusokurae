@@ -97,6 +97,9 @@ typedef enum {
     KUSOKURAE_ERROR_NULLPTR,
     KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS,
     KUSOKURAE_ERROR_UNINITIALIZED,
+
+    KUSOKURAE_ERROR_UNIMPLEMENTED,
+    KUSOKURAE_ERROR_UNSPECIFIED,
 } kusokurae_error_t;
 
 typedef struct {
@@ -141,7 +144,7 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self);
 kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
                                       kusokurae_card_t card);
 
-int kusokurae_get_active_player(kusokurae_game_state_t *self);
+kusokurae_player_t *kusokurae_get_active_player(kusokurae_game_state_t *self);
 
 void kusokurae_get_round_state(kusokurae_game_state_t *self,
                                kusokurae_round_state_t *out);

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "sm.h"
+#include "sm_internal.h"
 
 static kusokurae_card_t DECK[KUSOKURAE_DECK_SIZE];
 
@@ -40,6 +41,23 @@ static int compcard(const void *lhs, const void *rhs) {
         return 1;
     }
     return 0;
+}
+
+int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card) {
+    for (int i = 0; i < player->ncards; i++) {
+        if (player->hand[i].rank == card->rank &&
+            player->hand[i].suit == card->suit) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void player_drop_card(kusokurae_player_t *player, int index) {
+    if (index < 0 || index >= player->ncards) {
+        return;
+    }
+    memmove(&player->hand[index], &player->hand[index + 1], (--player->ncards - index) * sizeof(kusokurae_card_t));
 }
 
 void kusokurae_global_init() {
@@ -142,4 +160,10 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     self->status = KUSOKURAE_STATUS_PLAY;
     self->nround = 0;
     return KUSOKURAE_SUCCESS;
+}
+
+kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
+                                      kusokurae_card_t card) {
+    // Stub
+    return KUSOKURAE_ERROR_UNIMPLEMENTED;
 }
