@@ -58,34 +58,34 @@ var errMap = map[C.kusokurae_error_t]error{
 
 // GameConfig has the same memory layout with C.kusokurae_game_config_t.
 type GameConfig struct {
-	NumPlayers int
+	NumPlayers int32
 }
 
 // Card has the same memory layout with C.kusokurae_card_t.
 type Card struct {
-	DisplayOrder uint
-	Suit         int // C.kusokurae_card_suit_t
-	Rank         int
+	DisplayOrder uint32
+	Suit         int32 // C.kusokurae_card_suit_t
+	Rank         int32
 }
 
 // Player has the same memory layout with C.kusokurae_player_t.
 type Player struct {
-	Index      int
-	Active     int // C.kusokurae_round_status_t
+	Index      int32
+	Active     int32 // C.kusokurae_round_status_t
 	Hand       [C.KUSOKURAE_MAX_HAND_CARDS]Card
-	NumCards   int
-	CardsTaken int
-	Score      int
+	NumCards   int32
+	CardsTaken int32
+	Score      int32
 }
 
 // GameState has the same memory layout with C.kusokurae_game_state_t.
 type GameState struct {
 	cfg          GameConfig
-	status       int
+	status       int32
 	players      [C.KUSOKURAE_MAX_PLAYERS]Player
-	activePlayer int
-	numRound     int
-	ghostHolder  int
+	activePlayer int32
+	numRound     int32
+	ghostHolder  int32
 	curRound     [C.KUSOKURAE_MAX_PLAYERS]Card
 }
 

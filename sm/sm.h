@@ -5,12 +5,14 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+
 #define KUSOKURAE_DECK_SIZE         33
 #define KUSOKURAE_MAX_HAND_CARDS    22
 #define KUSOKURAE_MAX_PLAYERS       4
 
 typedef struct {
-    int np; // Number of players (3 or 4)
+    int32_t np; // Number of players (3 or 4)
 } kusokurae_game_config_t;
 
 typedef enum {
@@ -47,10 +49,10 @@ typedef enum {
 
 typedef struct {
     // Sequence in the new, unshuffled deck. Higher value precedes lower
-    // e.g. The most newby card, Ghost, has a display_order of 33.
+    // e.g. The newbiest card, Ghost, has a display_order of 33.
     // 0 indicates invalid data (unfilled slot).
     // Should be filled during global initialization and copied afterwards.
-    unsigned display_order;
+    uint32_t display_order;
 
     // Declared above
     kusokurae_card_suit_t suit;
@@ -58,7 +60,7 @@ typedef struct {
     // 0~10 for BAOZI
     // 0~9 for YOUTIAO and XIANG
     // 10 for OTHER
-    int rank;
+    int32_t rank;
 } kusokurae_card_t;
 
 typedef enum {
@@ -69,7 +71,7 @@ typedef enum {
 
 typedef struct {
     // 1~4 (0 for invalid)
-    int index;
+    int32_t index;
 
     // 1 - active (playing), 2 - already played
     kusokurae_round_status_t active;
@@ -80,14 +82,14 @@ typedef struct {
     // The number of valid cards in hand.
     // When a card is played, it is removed from hand and all following cards
     //   should be moved ahead to keep the array consecutive.
-    int ncards;
+    int32_t ncards;
 
     // If the player wins a round, he/she takes all cards played in that round.
     // cards_taken will always be multiples of player count.
-    int cards_taken;
+    int32_t cards_taken;
 
     // The score accumulated from cards_taken.
-    int score;
+    int32_t score;
 } kusokurae_player_t;
 
 typedef enum {
@@ -105,13 +107,13 @@ typedef struct {
     kusokurae_player_t players[KUSOKURAE_MAX_PLAYERS];
 
     // Active player (0~3) - only valid if status is PLAY
-    int active_player_index;
+    int32_t active_player_index;
 
     // Finished round count
-    int nround;
+    int32_t nround;
 
     // Who has the ghost in hand?
-    int ghost_holder_index;
+    int32_t ghost_holder_index;
 
     // Cards played in the current round.
     // players[n]'s move is placed in current_round[n].
@@ -120,16 +122,16 @@ typedef struct {
 
 typedef struct {
     // On screen: "Round <seq>"
-    int seq;
+    int32_t seq;
 
     // Whether there is a ghost
-    int is_doubled;
+    int32_t is_doubled;
 
     // Total score in cards played
-    int score_on_board;
+    int32_t score_on_board;
 
     // The current winning player
-    int leader;
+    int32_t leader;
 } kusokurae_round_state_t;
 
 void kusokurae_global_init();
@@ -141,8 +143,6 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self);
 
 kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
                                       kusokurae_card_t card);
-
-kusokurae_error_t kusokurae_game_autoplay(kusokurae_game_state_t *self);
 
 int kusokurae_get_active_player(kusokurae_game_state_t *self);
 
