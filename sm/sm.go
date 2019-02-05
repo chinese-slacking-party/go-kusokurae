@@ -10,6 +10,10 @@ import (
 	"unsafe"
 )
 
+func init() {
+	C.kusokurae_global_init()
+}
+
 // Enum: kusokurae_game_status_t
 const (
 	StatusNull = iota
