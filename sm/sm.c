@@ -15,7 +15,7 @@ static void print_cards(kusokurae_card_t *base, size_t count) {
 static void sample(void *ptr, size_t count, size_t size, size_t wanted, void *pchosen, void *pdiscarded) {
     char *psrc = (char *)ptr, *pdst = (char *)pchosen, *prej = (char *)pdiscarded;
     size_t rcount = count, rwanted = wanted; // r for remaining
-    long long dice, threshold;
+    int64_t dice, threshold;
     while (rcount > 0) {
         dice = rand();
         threshold = (RAND_MAX + 1ULL) * rwanted / rcount;
@@ -125,7 +125,7 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
             self->ghost_holder_index = i;
         }
     }
-    
+
     self->players[0].active = KUSOKURAE_ROUND_ACTIVE;
     self->status = KUSOKURAE_STATUS_PLAY;
     return KUSOKURAE_SUCCESS;
