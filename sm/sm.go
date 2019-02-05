@@ -106,6 +106,12 @@ func errcode2Go(code C.kusokurae_error_t) (err error) {
 	return
 }
 
+// GetHandCards returns a slice holding the player's cards. It operates in
+// constant time.
+func (p *Player) GetHandCards() []Card {
+	return p.Hand[0:p.NumCards]
+}
+
 // NewGame creates a new game state with specified number of players.
 func NewGame(cfg GameConfig) (ret *GameState, err error) {
 	ret = &GameState{}
@@ -124,4 +130,14 @@ func (g *GameState) Start() (err error) {
 	pg := unsafe.Pointer(g)
 	err = errcode2Go(C.kusokurae_game_start((*C.kusokurae_game_state_t)(pg)))
 	return
+}
+
+// IsFinalRound checks if the game is in (or after) its last round.
+func (g *GameState) IsFinalRound() bool {
+	for i := range g.players {
+		if g.players[i].NumCards > 1 {
+			return false
+		}
+	}
+	return true
 }
