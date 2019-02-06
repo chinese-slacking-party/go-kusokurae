@@ -35,11 +35,11 @@ void print_card(kusokurae_card_t *p) {
 int main(int argc, char *argv[]) {
     std::printf("Starting kusokurae engine test...\n\n");
     std::printf("Sizes of data structures:\n");
-    std::printf("kusokurae_game_config_t: %d\n", sizeof(kusokurae_game_config_t));
-    std::printf("kusokurae_card_t: %d\n", sizeof(kusokurae_card_t));
-    std::printf("kusokurae_player_t: %d\n", sizeof(kusokurae_player_t));
-    std::printf("kusokurae_game_state_t: %d\n", sizeof(kusokurae_game_state_t));
-    std::printf("kusokurae_round_state_t: %d\n", sizeof(kusokurae_round_state_t));
+    std::printf("kusokurae_game_config_t: %lu\n", sizeof(kusokurae_game_config_t));
+    std::printf("kusokurae_card_t: %lu\n", sizeof(kusokurae_card_t));
+    std::printf("kusokurae_player_t: %lu\n", sizeof(kusokurae_player_t));
+    std::printf("kusokurae_game_state_t: %lu\n", sizeof(kusokurae_game_state_t));
+    std::printf("kusokurae_round_state_t: %lu\n", sizeof(kusokurae_round_state_t));
     kusokurae_global_init();
 
     kusokurae_game_config_t cfg = { 4 };
