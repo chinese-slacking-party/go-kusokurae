@@ -102,6 +102,12 @@ void kusokurae_global_init() {
     rng = &urand;
 }
 
+void kusokurae_set_prng(int16_t (*fn)(void *)) {
+    if (fn != NULL) {
+        rng = fn;
+    }
+}
+
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
                                       kusokurae_game_config_t *cfg) {
     if (self == NULL || cfg == NULL) {

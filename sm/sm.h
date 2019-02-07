@@ -139,6 +139,8 @@ typedef struct {
 
 void kusokurae_global_init();
 
+void kusokurae_set_prng(int16_t (*fn)(void *));
+
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
                                       kusokurae_game_config_t *cfg);
 

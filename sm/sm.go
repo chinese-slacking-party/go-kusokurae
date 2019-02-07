@@ -1,17 +1,38 @@
 package sm
 
-// #cgo CFLAGS: -DWHATEVER_YOU_WANT_TO_INDICATE_CGO=1
-// #cgo CXXFLAGS: -DWHATEVER_YOU_WANT_TO_INDICATE_CGO=1
-// #include "sm.h"
+/*
+#cgo CFLAGS: -DWHATEVER_YOU_WANT_TO_INDICATE_CGO=1
+#cgo CXXFLAGS: -DWHATEVER_YOU_WANT_TO_INDICATE_CGO=1
+#include "sm.h"
+
+extern void goRandom(int16_t *);
+static inline int16_t cgo_random(void *state) {
+    int16_t ret;
+	goRandom(&ret);
+	return ret;
+}
+static inline void set_prng() {
+	kusokurae_set_prng(&cgo_random);
+}
+*/
 import "C"
 
 import (
 	"errors"
+	"math/rand"
+	"time"
 	"unsafe"
 )
 
+//export goRandom
+func goRandom(out *C.int16_t) {
+	rnd := int16(rand.Intn(0x7FFF))
+	*out = C.int16_t(rnd)
+}
+
 func init() {
 	C.kusokurae_global_init()
+	C.set_prng()
 }
 
 // Enum: kusokurae_game_status_t
@@ -89,7 +110,7 @@ type GameState struct {
 	numRound    int32
 	ghostHolder int32
 	curRound    [C.KUSOKURAE_MAX_PLAYERS]Card
-	rngState    [8]byte
+	rngState    int64
 }
 
 // RoundState corresponds to C.kusokurae_round_state_t, but does not preserve
@@ -135,6 +156,9 @@ func NewGame(cfg GameConfig) (ret *GameState, err error) {
 		(*C.kusokurae_game_state_t)(pret),
 		(*C.kusokurae_game_config_t)(pcfg),
 	))
+	if err == nil {
+		ret.rngState = time.Now().UnixNano()
+	}
 	return
 }
 
