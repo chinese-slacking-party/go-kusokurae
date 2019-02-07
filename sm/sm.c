@@ -48,6 +48,7 @@ static int compcard(const void *lhs, const void *rhs) {
 }
 
 int16_t urand(void *state) {
+    // Ref https://bitbucket.org/shlomif/fc-solve/src/dd80a812e8b3aba98a014d939ed77eb1ce764e04/fc-solve/source/board_gen/pi_make_microsoft_freecell_board.c
     int32_t *istate = (int32_t *)state;
     *istate = 214013 * (*istate) + 2531011;
     *istate &= 0x7FFFFFFF;
@@ -121,6 +122,9 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
     // Seed the PRNG. You can assign to state later if different seeding is needed
     time_t *state = (time_t *)&self->rng_state;
     *state = time(0);
+    // Discard the first number that is not quite random.
+    // It will be better if nanosecond clock is used as seed.
+    urand(state);
 
     self->status = KUSOKURAE_STATUS_INIT;
 
