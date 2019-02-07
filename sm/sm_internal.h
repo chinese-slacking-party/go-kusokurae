@@ -7,6 +7,10 @@ extern "C" {
 
 #include "sm.h"
 
+#define MS_RAND_MAX 32767
+
+int16_t urand(void *state);
+
 int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card);
 void player_drop_card(kusokurae_player_t *player, int index);
 

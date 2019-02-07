@@ -89,6 +89,7 @@ type GameState struct {
 	numRound    int32
 	ghostHolder int32
 	curRound    [C.KUSOKURAE_MAX_PLAYERS]Card
+	rngState    [8]byte
 }
 
 // RoundState corresponds to C.kusokurae_round_state_t, but does not preserve

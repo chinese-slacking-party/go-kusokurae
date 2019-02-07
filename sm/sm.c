@@ -6,6 +6,7 @@
 #include "sm_internal.h"
 
 static kusokurae_card_t DECK[KUSOKURAE_DECK_SIZE];
+static int16_t (*rng)(void *);
 
 static void print_cards(kusokurae_card_t *base, size_t count) {
     for (int i = 0; i < count; i++) {
@@ -13,12 +14,15 @@ static void print_cards(kusokurae_card_t *base, size_t count) {
     }
 }
 
-static void sample(void *ptr, size_t count, size_t size, size_t wanted, void *pchosen, void *pdiscarded) {
+static void sample(void *ptr, size_t count, size_t size,
+                   size_t wanted, void *pchosen, void *pdiscarded,
+                   void *rng_state) {
     char *psrc = (char *)ptr, *pdst = (char *)pchosen, *prej = (char *)pdiscarded;
     size_t rcount = count, rwanted = wanted; // r for remaining
-    int64_t dice, threshold;
+    int64_t threshold;
+    int16_t dice;
     while (rcount > 0) {
-        dice = rand();
+        dice = rng(rng_state);
         threshold = (RAND_MAX + 1ULL) * rwanted / rcount;
         //printf("%ld wanted, %ld remaining, %lld/%lld\n", rwanted, rcount, dice, threshold);
         if (dice < threshold) {
@@ -43,6 +47,13 @@ static int compcard(const void *lhs, const void *rhs) {
     return 0;
 }
 
+int16_t urand(void *state) {
+    int32_t *istate = (int32_t *)state;
+    *istate = 214013 * (*istate) + 2531011;
+    *istate &= 0x7FFFFFFF;
+    return *istate >> 16;
+}
+
 int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card) {
     for (int i = 0; i < player->ncards; i++) {
         if (player->hand[i].rank == card->rank &&
@@ -61,8 +72,6 @@ void player_drop_card(kusokurae_player_t *player, int index) {
 }
 
 void kusokurae_global_init() {
-    srand(time(0));
-
     // Special treatment for jokers
     DECK[0].suit = KUSOKURAE_SUIT_BAOZI;
     DECK[0].rank = 10;
@@ -89,6 +98,8 @@ void kusokurae_global_init() {
         }
     }
     //print_cards(DECK, KUSOKURAE_DECK_SIZE);
+    // Use the default PRNG
+    rng = &urand;
 }
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
@@ -100,6 +111,11 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
         return KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS;
     }
     memcpy(&self->cfg, cfg, sizeof(kusokurae_game_config_t));
+
+    // Seed the PRNG. You can assign to state later if different seeding is needed
+    time_t *state = (time_t *)&self->rng_state;
+    *state = time(0);
+
     self->status = KUSOKURAE_STATUS_INIT;
 
     for (int i = 0; i < self->cfg.np; i++) {
@@ -129,12 +145,12 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     // At most two remainder areas are used.
     // TODO: more flexible card assignment (e.g. 5~6 players, 2 decks)
     kusokurae_card_t remaining[KUSOKURAE_DECK_SIZE], remaining2[KUSOKURAE_DECK_SIZE];
-    sample(deck_base, count, sizeof(kusokurae_card_t), counteach, self->players[0].hand, remaining);
+    sample(deck_base, count, sizeof(kusokurae_card_t), counteach, self->players[0].hand, remaining, &self->rng_state);
     if (self->cfg.np == 4) {
-        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].hand, remaining2);
-        sample(remaining2, count - counteach * 2, sizeof(kusokurae_card_t), counteach, self->players[2].hand, self->players[3].hand);
+        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].hand, remaining2, &self->rng_state);
+        sample(remaining2, count - counteach * 2, sizeof(kusokurae_card_t), counteach, self->players[2].hand, self->players[3].hand, &self->rng_state);
     } else {
-        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].hand, self->players[2].hand);
+        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].hand, self->players[2].hand, &self->rng_state);
     }
 
     int i;

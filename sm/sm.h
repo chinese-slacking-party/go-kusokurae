@@ -118,6 +118,9 @@ typedef struct {
     // Cards played in the current round.
     // players[n]'s move is placed in current_round[n].
     kusokurae_card_t current_round[KUSOKURAE_MAX_PLAYERS];
+
+    // 8 bytes of state for random number generator.
+    uint64_t rng_state;
 } kusokurae_game_state_t;
 
 typedef struct {
