@@ -23,7 +23,7 @@ static void sample(void *ptr, size_t count, size_t size,
     int16_t dice;
     while (rcount > 0) {
         dice = rng(rng_state);
-        threshold = (RAND_MAX + 1ULL) * rwanted / rcount;
+        threshold = (MS_RAND_MAX + 1ULL) * rwanted / rcount;
         //printf("%ld wanted, %ld remaining, %lld/%lld\n", rwanted, rcount, dice, threshold);
         if (dice < threshold) {
             memcpy(pdst, psrc, size);
