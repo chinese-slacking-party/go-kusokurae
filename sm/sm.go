@@ -27,11 +27,13 @@ import (
 //export goRandom
 func goRandom(out *C.int16_t) {
 	rnd := int16(rand.Intn(0x7FFF))
+	//log.Println("rnd is", rnd)
 	*out = C.int16_t(rnd)
 }
 
 func init() {
 	C.kusokurae_global_init()
+	rand.Seed(time.Now().UnixNano())
 	C.set_prng()
 }
 
@@ -156,9 +158,6 @@ func NewGame(cfg GameConfig) (ret *GameState, err error) {
 		(*C.kusokurae_game_state_t)(pret),
 		(*C.kusokurae_game_config_t)(pcfg),
 	))
-	if err == nil {
-		ret.rngState = time.Now().UnixNano()
-	}
 	return
 }
 
