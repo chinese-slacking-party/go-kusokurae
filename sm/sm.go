@@ -92,6 +92,7 @@ type Card struct {
 	displayOrder uint32
 	suit         Suit
 	rank         int32
+	flags        uint32
 }
 
 // Player has the same memory layout with C.kusokurae_player_t.

@@ -58,7 +58,8 @@ int16_t urand(void *state) {
 int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card) {
     for (int i = 0; i < player->ncards; i++) {
         if (player->hand[i].rank == card->rank &&
-            player->hand[i].suit == card->suit) {
+            player->hand[i].suit == card->suit &&
+            player->hand[i].flags & MASK_PLAYED_IN_ROUND == 0) {
             return i;
         }
     }
@@ -72,12 +73,33 @@ void player_drop_card(kusokurae_player_t *player, int index) {
     memmove(&player->hand[index], &player->hand[index + 1], (--player->ncards - index) * sizeof(kusokurae_card_t));
 }
 
+void player_set_card_played(kusokurae_player_t *player, int index, int nround) {
+    if (index < 0 || index >= player->ncards) {
+        return;
+    }
+    uint32_t n = nround & 0x7F; // 1~127 - play, 0 - unplay
+    player->hand[index].flags &= (~MASK_PLAYED_IN_ROUND);
+    player->hand[index].flags |= n;
+}
+
+void player_set_card_playable(kusokurae_player_t *player, int index, int status) {
+    if (index < 0 || index >= player->ncards) {
+        return;
+    }
+    if (status) {
+        player->hand[index].flags |= MASK_PLAYABLE;
+    } else {
+        player->hand[index].flags &= (~MASK_PLAYABLE);
+    }
+}
+
 void kusokurae_global_init() {
+    int i;
     // Special treatment for jokers
     DECK[0].suit = KUSOKURAE_SUIT_BAOZI;
     DECK[0].rank = 10;
     DECK[0].display_order = KUSOKURAE_DECK_SIZE;
-    for (int i = 1; i < 3; i++) {
+    for (i = 1; i < 3; i++) {
         DECK[i] = DECK[0];
         DECK[i].display_order -= i;
     }
@@ -87,7 +109,7 @@ void kusokurae_global_init() {
 
     kusokurae_card_suit_t cursuit = KUSOKURAE_SUIT_BAOZI;
     int currank = 9;
-    for (int i = 3; i < KUSOKURAE_DECK_SIZE; i++) {
+    for (; i < KUSOKURAE_DECK_SIZE; i++) {
         DECK[i].suit = cursuit;
         DECK[i].rank = currank;
         DECK[i].display_order = KUSOKURAE_DECK_SIZE - i;
@@ -98,7 +120,12 @@ void kusokurae_global_init() {
             currank--;
         }
     }
+
+    for (i = 0; i < KUSOKURAE_DECK_SIZE; i++) {
+        DECK[i].flags = 0;
+    }
     //print_cards(DECK, KUSOKURAE_DECK_SIZE);
+
     // Use the default PRNG
     rng = &urand;
 }

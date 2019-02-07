@@ -61,6 +61,11 @@ typedef struct {
     // 0~9 for YOUTIAO and XIANG
     // 10 for OTHER
     int32_t rank;
+
+    // Bits 0~6: round index (counting from 1) in which the card is played
+    // Bit 7: whether the card could be played in the current round
+    // Bits 8~31: reserved
+    uint32_t flags;
 } kusokurae_card_t;
 
 typedef enum {

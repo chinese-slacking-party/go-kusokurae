@@ -9,10 +9,15 @@ extern "C" {
 
 #define MS_RAND_MAX 32767
 
+#define MASK_PLAYED_IN_ROUND    0x7F
+#define MASK_PLAYABLE           0x80
+
 int16_t urand(void *state);
 
 int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card);
 void player_drop_card(kusokurae_player_t *player, int index);
+void player_set_card_played(kusokurae_player_t *player, int index, int nround);
+void player_set_card_playable(kusokurae_player_t *player, int index, int status);
 
 #ifdef __cplusplus
 }
