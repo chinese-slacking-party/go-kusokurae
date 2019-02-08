@@ -120,9 +120,6 @@ typedef struct {
     // Who has the ghost in hand?
     int32_t ghost_holder_index;
 
-    // Who last played a card?
-    int32_t last_player_index;
-
     // Cards played in the current round.
     // players[n]'s move is placed in current_round[n].
     kusokurae_card_t current_round[KUSOKURAE_MAX_PLAYERS];

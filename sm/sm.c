@@ -212,7 +212,6 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     self->players[0].active = KUSOKURAE_ROUND_ACTIVE;
     self->status = KUSOKURAE_STATUS_PLAY;
     self->nround = 0;
-    self->last_player_index = -1;
     return KUSOKURAE_SUCCESS;
 }
 

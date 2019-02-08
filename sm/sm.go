@@ -112,7 +112,6 @@ type GameState struct {
 	players     [C.KUSOKURAE_MAX_PLAYERS]Player
 	numRound    int32
 	ghostHolder int32
-	lastPlayer  int32
 	curRound    [C.KUSOKURAE_MAX_PLAYERS]Card
 	rngState    int64
 }
