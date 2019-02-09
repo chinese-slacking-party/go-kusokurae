@@ -114,7 +114,7 @@ type GameState struct {
 	ghostHolder int32
 	highRanker  int32
 	curRound    [C.KUSOKURAE_MAX_PLAYERS]Card
-	rngState    [8]byte // Instead of int64 - avoid alignment issue
+	rngState    int64
 }
 
 // RoundState corresponds to C.kusokurae_round_state_t, but does not preserve
@@ -124,7 +124,7 @@ type RoundState struct {
 	Seq          int
 	IsDoubled    bool
 	ScoreOnBoard int
-	Leader       *Player
+	RoundWinner  *Player
 }
 
 func errcode2Go(code C.kusokurae_error_t) (err error) {

@@ -147,7 +147,7 @@ typedef struct {
     int32_t score_on_board;
 
     // The current winning player
-    int32_t leader;
+    int32_t round_winner;
 } kusokurae_round_state_t;
 
 void kusokurae_global_init();
