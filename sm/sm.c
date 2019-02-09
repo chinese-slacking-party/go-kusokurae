@@ -47,6 +47,33 @@ static int compcard(const void *lhs, const void *rhs) {
     return 0;
 }
 
+static int compcard2(const void *lhs, const void *rhs) {
+    return ((const kusokurae_card_t *)rhs)->rank - ((const kusokurae_card_t *)lhs)->rank;
+}
+
+static int is_zero_card(kusokurae_card_t *p) {
+    // Card assigned in this lib must have display_order set.
+    return p->display_order == 0;
+}
+
+static int round_score(kusokurae_game_state_t *g) {
+    int ret = 0;
+    int bonus_flag = 0;
+    for (int i = 0; i < KUSOKURAE_MAX_PLAYERS; i++) {
+        if (!g->current_round[i].display_order) {
+            continue;
+        }
+        switch (g->current_round[i].suit) {
+        case KUSOKURAE_SUIT_OTHER:
+            bonus_flag++;
+        default:
+            ret += g->current_round[i].suit;
+        }
+    }
+    ret <<= bonus_flag;
+    return ret;
+}
+
 int16_t urand(void *state) {
     // Ref https://bitbucket.org/shlomif/fc-solve/src/dd80a812e8b3aba98a014d939ed77eb1ce764e04/fc-solve/source/board_gen/pi_make_microsoft_freecell_board.c
     int32_t *istate = (int32_t *)state;
@@ -60,6 +87,7 @@ int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card) {
         if (player->hand[i].rank == card->rank &&
             player->hand[i].suit == card->suit &&
             player->hand[i].flags & MASK_PLAYED_IN_ROUND == 0) {
+            *card = player->hand[i]; // Copy metadata of the hand card out
             return i;
         }
     }
@@ -91,6 +119,27 @@ void player_set_card_playable(kusokurae_player_t *player, int index, int status)
     } else {
         player->hand[index].flags &= (~MASK_PLAYABLE);
     }
+}
+
+void player_set_playable_flags(kusokurae_player_t *player, int is_leader) {
+    int i, status;
+    for (i = 0; i < player->ncards; i++) {
+        if (!is_leader || player->hand[i].rank > 0) {
+            status = 1;
+        } else {
+            // Leader can't play rank 0 (unless the game is in final round)
+            status = 0;
+        }
+        player_set_card_playable(player, i, status);
+    }
+}
+
+kusokurae_player_t *player_find_next(kusokurae_game_state_t *game, kusokurae_player_t *player) {
+    int index = player->index;
+    if (index >= game->cfg.np) {
+        index = 0;
+    }
+    return &game->players[index];
 }
 
 void kusokurae_global_init() {
@@ -212,11 +261,89 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     self->players[0].active = KUSOKURAE_ROUND_ACTIVE;
     self->status = KUSOKURAE_STATUS_PLAY;
     self->nround = 0;
+    self->high_ranker_index = -1;
     return KUSOKURAE_SUCCESS;
 }
 
 kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
                                       kusokurae_card_t card) {
-    // Stub
-    return KUSOKURAE_ERROR_UNIMPLEMENTED;
+    if (self == NULL) {
+        return KUSOKURAE_ERROR_NULLPTR;
+    }
+    if (self->status != KUSOKURAE_STATUS_PLAY) {
+        return KUSOKURAE_ERROR_NOT_IN_GAME;
+    }
+    kusokurae_player_t *p = kusokurae_get_active_player(self);
+    if (p == NULL) {
+        return KUSOKURAE_ERROR_BUG_NOBODY_ACTIVE;
+    }
+
+    int pos = player_has_card(p, &card);
+    if (pos < 0) {
+        return KUSOKURAE_ERROR_CARD_NOT_FOUND;
+    }
+    if (!(p->hand[pos].flags & MASK_PLAYABLE)) {
+        return KUSOKURAE_ERROR_FORBIDDEN_MOVE;
+    }
+
+    player_set_card_played(p, pos, self->nround + 1);
+    p->active = KUSOKURAE_ROUND_DONE;
+    kusokurae_card_t *precord = &self->current_round[p->index - 1];
+    if (!is_zero_card(precord)) {
+        // This is the first move in a round (current_round is holding the last
+        // trick). Clear it.
+        memset(&self->current_round, 0, sizeof(self->current_round));
+    }
+    *precord = card;
+
+    // Update current round winner
+    if (self->high_ranker_index < 0) {
+        self->high_ranker_index = 0;
+    } else {
+        if (compcard2(&self->current_round[self->high_ranker_index],
+                      &self->current_round[p->index - 1]) > 0) {
+            self->high_ranker_index = p->index - 1;
+        }
+    }
+
+    kusokurae_player_t *nextp = player_find_next(self, p);
+    if (nextp->active != KUSOKURAE_ROUND_WAITING) {
+        // The next player has already played his/her move:
+        // the current round (trick) should conclude.
+        kusokurae_player_t *winner = &self->players[self->high_ranker_index];
+        winner->cards_taken += self->cfg.np;
+        winner->score += round_score(self);
+
+        // Next round
+        for (int i = 0; i < self->cfg.np; i++) {
+            self->players[i].active = KUSOKURAE_ROUND_WAITING;
+        }
+        winner->active = KUSOKURAE_ROUND_ACTIVE;
+
+        // Game finish
+        self->nround++;
+        if (self->nround >= self->players[0].ncards) {
+            self->status = KUSOKURAE_STATUS_FINISH;
+        }
+    } else {
+        nextp->active = KUSOKURAE_ROUND_ACTIVE;
+    }
+
+    return KUSOKURAE_SUCCESS;
+}
+
+int kusokurae_game_is_final_round(kusokurae_game_state_t *self) {
+    if (self->nround + 1 >= self->players[0].ncards) {
+        return 1;
+    }
+    return 0;
+}
+
+kusokurae_player_t *kusokurae_get_active_player(kusokurae_game_state_t *self) {
+    for (int i = 0; i < KUSOKURAE_MAX_PLAYERS; i++) {
+        if (self->players[i].active == KUSOKURAE_ROUND_ACTIVE) {
+            return &self->players[i];
+        }
+    }
+    return NULL;
 }

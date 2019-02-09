@@ -112,8 +112,9 @@ type GameState struct {
 	players     [C.KUSOKURAE_MAX_PLAYERS]Player
 	numRound    int32
 	ghostHolder int32
+	highRanker  int32
 	curRound    [C.KUSOKURAE_MAX_PLAYERS]Card
-	rngState    int64
+	rngState    [8]byte // Instead of int64 - avoid alignment issue
 }
 
 // RoundState corresponds to C.kusokurae_round_state_t, but does not preserve
@@ -162,20 +163,21 @@ func NewGame(cfg GameConfig) (ret *GameState, err error) {
 	return
 }
 
+func (g *GameState) cPtr() *C.kusokurae_game_state_t {
+	return (*C.kusokurae_game_state_t)(unsafe.Pointer(g))
+}
+
 // Start deals cards to each player and begins waiting for play from the first
 // player.
 func (g *GameState) Start() (err error) {
-	pg := unsafe.Pointer(g)
-	err = errcode2Go(C.kusokurae_game_start((*C.kusokurae_game_state_t)(pg)))
+	err = errcode2Go(C.kusokurae_game_start(g.cPtr()))
 	return
 }
 
 // IsFinalRound checks if the game is in (or after) its last round.
 func (g *GameState) IsFinalRound() bool {
-	for i := range g.players {
-		if g.players[i].numCards > 1 {
-			return false
-		}
+	if C.kusokurae_game_is_final_round(g.cPtr()) != 0 {
+		return true
 	}
-	return true
+	return false
 }

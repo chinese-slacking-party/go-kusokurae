@@ -1,5 +1,7 @@
 #include <cstdio>
+#include <ctime>
 #include "sm.h"
+#include "sm_internal.h"
 
 void print_card(kusokurae_card_t *p) {
     if (p == NULL) {
@@ -33,7 +35,7 @@ void print_card(kusokurae_card_t *p) {
 #ifndef WHATEVER_YOU_WANT_TO_INDICATE_CGO
 
 int main(int argc, char *argv[]) {
-    std::printf("Starting kusokurae engine test...\n\n");
+    std::printf("Starting kusokurae engine test @ %ld...\n\n", time(0));
     std::printf("Sizes of data structures:\n");
     std::printf("kusokurae_game_config_t: %lu\n", sizeof(kusokurae_game_config_t));
     std::printf("kusokurae_card_t: %lu\n", sizeof(kusokurae_card_t));

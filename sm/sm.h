@@ -102,6 +102,10 @@ typedef enum {
     KUSOKURAE_ERROR_NULLPTR,
     KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS,
     KUSOKURAE_ERROR_UNINITIALIZED,
+    KUSOKURAE_ERROR_NOT_IN_GAME,
+    KUSOKURAE_ERROR_BUG_NOBODY_ACTIVE,
+    KUSOKURAE_ERROR_CARD_NOT_FOUND,
+    KUSOKURAE_ERROR_FORBIDDEN_MOVE,
 
     KUSOKURAE_ERROR_UNIMPLEMENTED,
     KUSOKURAE_ERROR_UNSPECIFIED,
@@ -119,6 +123,10 @@ typedef struct {
 
     // Who has the ghost in hand?
     int32_t ghost_holder_index;
+
+    // Rank leader in the current round.
+    // Set to -1 before anyone plays and updated on each play.
+    int32_t high_ranker_index;
 
     // Cards played in the current round.
     // players[n]'s move is placed in current_round[n].
@@ -153,6 +161,8 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self);
 
 kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
                                       kusokurae_card_t card);
+
+int kusokurae_game_is_final_round(kusokurae_game_state_t *self);
 
 kusokurae_player_t *kusokurae_get_active_player(kusokurae_game_state_t *self);
 
