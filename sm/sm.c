@@ -86,7 +86,7 @@ int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card) {
     for (int i = 0; i < player->ncards; i++) {
         if (player->hand[i].rank == card->rank &&
             player->hand[i].suit == card->suit &&
-            player->hand[i].flags & MASK_PLAYED_IN_ROUND == 0) {
+            (player->hand[i].flags & MASK_PLAYED_IN_ROUND) == 0) {
             *card = player->hand[i]; // Copy metadata of the hand card out
             return i;
         }
