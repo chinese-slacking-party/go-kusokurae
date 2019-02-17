@@ -68,9 +68,13 @@ const (
 // Errors from underlying library.
 // Don't forget also to change here after adding new error codes in C interface.
 var (
-	ErrNullPtr       = errors.New("KUSOKURAE_ERROR_NULLPTR")
-	ErrBadNPlayers   = errors.New("KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS")
-	ErrUninitialized = errors.New("KUSOKURAE_ERROR_UNINITIALIZED")
+	ErrNullPtr         = errors.New("KUSOKURAE_ERROR_NULLPTR")
+	ErrBadNPlayers     = errors.New("KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS")
+	ErrUninitialized   = errors.New("KUSOKURAE_ERROR_UNINITIALIZED")
+	ErrNotInGame       = errors.New("KUSOKURAE_ERROR_NOT_IN_GAME")
+	ErrBugNobodyActive = errors.New("KUSOKURAE_ERROR_BUG_NOBODY_ACTIVE")
+	ErrCardNotFound    = errors.New("KUSOKURAE_ERROR_CARD_NOT_FOUND")
+	ErrForbiddenMove   = errors.New("KUSOKURAE_ERROR_FORBIDDEN_MOVE")
 
 	ErrUnknown = errors.New("Unknown")
 )
@@ -80,6 +84,10 @@ var errMap = map[C.kusokurae_error_t]error{
 	C.KUSOKURAE_ERROR_NULLPTR:               ErrNullPtr,
 	C.KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS: ErrBadNPlayers,
 	C.KUSOKURAE_ERROR_UNINITIALIZED:         ErrUninitialized,
+	C.KUSOKURAE_ERROR_NOT_IN_GAME:           ErrNotInGame,
+	C.KUSOKURAE_ERROR_BUG_NOBODY_ACTIVE:     ErrBugNobodyActive,
+	C.KUSOKURAE_ERROR_CARD_NOT_FOUND:        ErrCardNotFound,
+	C.KUSOKURAE_ERROR_FORBIDDEN_MOVE:        ErrForbiddenMove,
 }
 
 // GameConfig has the same memory layout with C.kusokurae_game_config_t.
