@@ -56,21 +56,26 @@ static int is_zero_card(kusokurae_card_t *p) {
     return p->display_order == 0;
 }
 
-static int round_score(kusokurae_game_state_t *g) {
+static int round_score(kusokurae_game_state_t *g, int *p_bonus_flag) {
     int ret = 0;
-    int bonus_flag = 0;
+    int bonus_flag;
+    if (p_bonus_flag == NULL) {
+        // Optionally export Ghostbonus status
+        p_bonus_flag = &bonus_flag;
+    }
+    *p_bonus_flag = 0;
     for (int i = 0; i < KUSOKURAE_MAX_PLAYERS; i++) {
         if (!g->current_round[i].display_order) {
             continue;
         }
         switch (g->current_round[i].suit) {
         case KUSOKURAE_SUIT_OTHER:
-            bonus_flag++;
+            *p_bonus_flag++;
         default:
             ret += g->current_round[i].suit;
         }
     }
-    ret <<= bonus_flag;
+    ret <<= *p_bonus_flag;
     return ret;
 }
 
@@ -312,7 +317,7 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
         // the current round (trick) should conclude.
         kusokurae_player_t *winner = &self->players[self->high_ranker_index];
         winner->cards_taken += self->cfg.np;
-        winner->score += round_score(self);
+        winner->score += round_score(self, NULL);
 
         // Next round
         for (int i = 0; i < self->cfg.np; i++) {
@@ -346,4 +351,25 @@ kusokurae_player_t *kusokurae_get_active_player(kusokurae_game_state_t *self) {
         }
     }
     return NULL;
+}
+
+void kusokurae_get_round_state(kusokurae_game_state_t *self,
+                               kusokurae_round_state_t *out) {
+    if (self == NULL || out == NULL) {
+        // NULL guard - should be in every 'public' function
+        return;
+    }
+
+    // Not very useful, because the following two values are already available
+    // in *self. This function is mainly for future extension.
+    out->seq = self->nround + 1;
+    out->round_winner = self->high_ranker_index;
+
+    int bonus_flag;
+    out->score_on_board = round_score(self, &bonus_flag);
+    if (bonus_flag) {
+        out->is_doubled = 1;
+    } else {
+        out->is_doubled = 0;
+    }
 }

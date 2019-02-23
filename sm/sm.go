@@ -27,7 +27,6 @@ import (
 //export goRandom
 func goRandom(out *C.int16_t) {
 	rnd := int16(rand.Intn(0x7FFF))
-	//log.Println("rnd is", rnd)
 	*out = C.int16_t(rnd)
 }
 
@@ -188,4 +187,31 @@ func (g *GameState) IsFinalRound() bool {
 		return true
 	}
 	return false
+}
+
+// GetActivePlayer returns the player whose turn it is now, or nil if the game
+// is not in progress.
+func (g *GameState) GetActivePlayer() *Player {
+	cActivePlayer := C.kusokurae_get_active_player(g.cPtr())
+	return (*Player)(unsafe.Pointer(cActivePlayer))
+}
+
+// GetRoundState returns some useful info about the current round.
+func (g *GameState) GetRoundState() (ret RoundState) {
+	var cRoundState C.kusokurae_round_state_t
+	C.kusokurae_get_round_state(g.cPtr(), (*C.kusokurae_round_state_t)(unsafe.Pointer(&cRoundState)))
+	ret.IsDoubled = (cRoundState.is_doubled != 0)
+	if cRoundState.round_winner < 0 || int32(cRoundState.round_winner) >= g.cfg.NumPlayers {
+		// Array bound check
+	} else {
+		ret.RoundWinner = &g.players[cRoundState.round_winner]
+	}
+	ret.ScoreOnBoard = int(cRoundState.score_on_board)
+	ret.Seq = int(cRoundState.seq)
+	return
+}
+
+// Play plays a card for the active player and return the operation result.
+func (g *GameState) Play(move Card) error {
+	return errcode2Go(C.kusokurae_game_play(g.cPtr(), *(*C.kusokurae_card_t)(unsafe.Pointer(&move))))
 }
