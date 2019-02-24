@@ -106,7 +106,7 @@ type Card struct {
 type Player struct {
 	index      int32
 	active     int32 // C.kusokurae_round_status_t
-	hand       [C.KUSOKURAE_MAX_HAND_CARDS]Card
+	allCards   [C.KUSOKURAE_MAX_HAND_CARDS]Card
 	numCards   int32
 	cardsTaken int32
 	score      int32
@@ -166,14 +166,14 @@ func (p *Card) RoundPlayed() int {
 // GetCards returns a slice holding the player's cards. It operates in constant
 // time.
 func (p *Player) GetCards() []Card {
-	return p.hand[0:p.numCards]
+	return p.allCards[0:p.numCards]
 }
 
 // GetHandCards return the player's cards IN HAND (not played yet).
 func (p *Player) GetHandCards() (ret []Card) {
 	for i := 0; i < int(p.numCards); i++ {
-		if p.hand[i].RoundPlayed() == 0 {
-			ret = append(ret, p.hand[i])
+		if p.allCards[i].RoundPlayed() == 0 {
+			ret = append(ret, p.allCards[i])
 		}
 	}
 	return

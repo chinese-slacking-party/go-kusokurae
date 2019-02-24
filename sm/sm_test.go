@@ -61,18 +61,18 @@ func TestGameStart(t *testing.T) {
 	assert.Equal(t, StatusPlay, state.status)
 	assert.Equal(t, &state.players[0], state.GetActivePlayer())
 
-	t.Log(state.players[0].hand)
-	t.Log(state.players[1].hand)
-	t.Log(state.players[2].hand)
+	t.Log(state.players[0].allCards)
+	t.Log(state.players[1].allCards)
+	t.Log(state.players[2].allCards)
 	// Verify dealing: ensure no duplicate card
 	cards := make(map[uint32]bool)
 	var i, j int
 	var order uint32
 	for i = 0; i < 3; i++ {
 		for j = 0; j < 11; j++ {
-			order = state.players[i].hand[j].displayOrder
+			order = state.players[i].allCards[j].displayOrder
 			if cards[order] {
-				t.Errorf("Duplicate card %+v", state.players[i].hand[j])
+				t.Errorf("Duplicate card %+v", state.players[i].allCards[j])
 			}
 			cards[order] = true
 		}
