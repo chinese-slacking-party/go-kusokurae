@@ -89,10 +89,10 @@ int16_t urand(void *state) {
 
 int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card) {
     for (int i = 0; i < player->ncards; i++) {
-        if (player->hand[i].rank == card->rank &&
-            player->hand[i].suit == card->suit &&
-            !kusokurae_card_round_played(player->hand[i])) {
-            *card = player->hand[i]; // Copy metadata of the hand card out
+        if (player->cards[i].rank == card->rank &&
+            player->cards[i].suit == card->suit &&
+            !kusokurae_card_round_played(player->cards[i])) {
+            *card = player->cards[i]; // Copy metadata of the hand card out
             return i;
         }
     }
@@ -103,7 +103,7 @@ void player_drop_card(kusokurae_player_t *player, int index) {
     if (index < 0 || index >= player->ncards) {
         return;
     }
-    memmove(&player->hand[index], &player->hand[index + 1], (--player->ncards - index) * sizeof(kusokurae_card_t));
+    memmove(&player->cards[index], &player->cards[index + 1], (--player->ncards - index) * sizeof(kusokurae_card_t));
 }
 
 void player_set_card_played(kusokurae_player_t *player, int index, int nround) {
@@ -111,8 +111,8 @@ void player_set_card_played(kusokurae_player_t *player, int index, int nround) {
         return;
     }
     uint32_t n = nround & 0x7F; // 1~127 - play, 0 - unplay
-    player->hand[index].flags &= (~MASK_PLAYED_IN_ROUND);
-    player->hand[index].flags |= n;
+    player->cards[index].flags &= (~MASK_PLAYED_IN_ROUND);
+    player->cards[index].flags |= n;
 }
 
 void player_set_card_playable(kusokurae_player_t *player, int index, int status) {
@@ -120,16 +120,16 @@ void player_set_card_playable(kusokurae_player_t *player, int index, int status)
         return;
     }
     if (status) {
-        player->hand[index].flags |= MASK_PLAYABLE;
+        player->cards[index].flags |= MASK_PLAYABLE;
     } else {
-        player->hand[index].flags &= (~MASK_PLAYABLE);
+        player->cards[index].flags &= (~MASK_PLAYABLE);
     }
 }
 
 void player_set_playable_flags(kusokurae_player_t *player, int is_leader) {
     int i, status;
     for (i = 0; i < player->ncards; i++) {
-        if (!is_leader || player->hand[i].rank > 0) {
+        if (!is_leader || player->cards[i].rank > 0) {
             status = 1;
         } else {
             // Leader can't play rank 0 (unless the game is in final round)
@@ -236,24 +236,24 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     // At most two remainder areas are used.
     // TODO: more flexible card assignment (e.g. 5~6 players, 2 decks)
     kusokurae_card_t remaining[KUSOKURAE_DECK_SIZE], remaining2[KUSOKURAE_DECK_SIZE];
-    sample(deck_base, count, sizeof(kusokurae_card_t), counteach, self->players[0].hand, remaining, &self->rng_state);
+    sample(deck_base, count, sizeof(kusokurae_card_t), counteach, self->players[0].cards, remaining, &self->rng_state);
     if (self->cfg.np == 4) {
-        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].hand, remaining2, &self->rng_state);
-        sample(remaining2, count - counteach * 2, sizeof(kusokurae_card_t), counteach, self->players[2].hand, self->players[3].hand, &self->rng_state);
+        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].cards, remaining2, &self->rng_state);
+        sample(remaining2, count - counteach * 2, sizeof(kusokurae_card_t), counteach, self->players[2].cards, self->players[3].cards, &self->rng_state);
     } else {
-        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].hand, self->players[2].hand, &self->rng_state);
+        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].cards, self->players[2].cards, &self->rng_state);
     }
 
     int i;
     // Set up player data and find the ghost holder.
     for (i = 0; i < self->cfg.np; i++) {
-        //print_cards(self->players[i].hand, counteach);
+        //print_cards(self->players[i].cards, counteach);
         self->players[i].index = i + 1;
         self->players[i].active = KUSOKURAE_ROUND_WAITING;
         self->players[i].ncards = counteach;
-        if (self->players[i].hand[0].suit == KUSOKURAE_SUIT_OTHER ||
-            self->players[i].hand[1].suit == KUSOKURAE_SUIT_OTHER ||
-            self->players[i].hand[2].suit == KUSOKURAE_SUIT_OTHER) {
+        if (self->players[i].cards[0].suit == KUSOKURAE_SUIT_OTHER ||
+            self->players[i].cards[1].suit == KUSOKURAE_SUIT_OTHER ||
+            self->players[i].cards[2].suit == KUSOKURAE_SUIT_OTHER) {
             self->ghost_holder_index = i;
         }
     }
@@ -287,7 +287,7 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
     if (pos < 0) {
         return KUSOKURAE_ERROR_CARD_NOT_FOUND;
     }
-    if (!kusokurae_card_is_playable(p->hand[pos])) {
+    if (!kusokurae_card_is_playable(p->cards[pos])) {
         return KUSOKURAE_ERROR_FORBIDDEN_MOVE;
     }
 

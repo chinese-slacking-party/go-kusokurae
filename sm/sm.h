@@ -82,7 +82,7 @@ typedef struct {
     int32_t active;
 
     // 22 card slots (reserved for playing with 2 decks)
-    kusokurae_card_t hand[KUSOKURAE_MAX_HAND_CARDS];
+    kusokurae_card_t cards[KUSOKURAE_MAX_HAND_CARDS];
 
     // The number of valid cards in hand.
     // When a card is played, it is removed from hand and all following cards

@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     for (i = 0; i < 4; i++) {
         std::printf("\n%dP's cards:\n", i + 1);
         for (j = 0; j < 8; j++) {
-            print_card(&g.players[i].hand[j]);
+            print_card(&g.players[i].cards[j]);
         }
     }
     std::printf("\n%dP has the ghost\n", g.ghost_holder_index + 1);
