@@ -152,6 +152,17 @@ func (p *Card) GetRank() int {
 	return int(p.rank)
 }
 
+// Playable checks whether the card is legal move now.
+func (p *Card) Playable() bool {
+	return (C.kusokurae_card_is_playable(*(*C.kusokurae_card_t)(unsafe.Pointer(p))) != 0)
+}
+
+// RoundPlayed returns the round number in which the card is played, or 0 if it
+// is still in hand.
+func (p *Card) RoundPlayed() int {
+	return int(C.kusokurae_card_round_played(*(*C.kusokurae_card_t)(unsafe.Pointer(p))))
+}
+
 // GetHandCards returns a slice holding the player's cards. It operates in
 // constant time.
 func (p *Player) GetHandCards() []Card {

@@ -91,7 +91,7 @@ int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card) {
     for (int i = 0; i < player->ncards; i++) {
         if (player->hand[i].rank == card->rank &&
             player->hand[i].suit == card->suit &&
-            (player->hand[i].flags & MASK_PLAYED_IN_ROUND) == 0) {
+            !kusokurae_card_round_played(player->hand[i])) {
             *card = player->hand[i]; // Copy metadata of the hand card out
             return i;
         }
@@ -287,7 +287,7 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
     if (pos < 0) {
         return KUSOKURAE_ERROR_CARD_NOT_FOUND;
     }
-    if (!(p->hand[pos].flags & MASK_PLAYABLE)) {
+    if (!kusokurae_card_is_playable(p->hand[pos])) {
         return KUSOKURAE_ERROR_FORBIDDEN_MOVE;
     }
 
@@ -372,4 +372,12 @@ void kusokurae_get_round_state(kusokurae_game_state_t *self,
     } else {
         out->is_doubled = 0;
     }
+}
+
+inline int kusokurae_card_is_playable(kusokurae_card_t card) {
+    return(card.flags & MASK_PLAYABLE);
+}
+
+inline int kusokurae_card_round_played(kusokurae_card_t card) {
+    return(card.flags & MASK_PLAYED_IN_ROUND);
 }

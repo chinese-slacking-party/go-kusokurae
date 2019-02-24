@@ -169,6 +169,10 @@ kusokurae_player_t *kusokurae_get_active_player(kusokurae_game_state_t *self);
 void kusokurae_get_round_state(kusokurae_game_state_t *self,
                                kusokurae_round_state_t *out);
 
+int kusokurae_card_is_playable(kusokurae_card_t card);
+
+int kusokurae_card_round_played(kusokurae_card_t card);
+
 #ifdef __cplusplus
 }
 #endif
