@@ -43,7 +43,8 @@ func TestActivePlayerNil(t *testing.T) {
 	// exit status 1
 	// FAIL    github.com/bs-iron-trio/go-kusokurae/sm 0.034s
 	//assert.Equal(t, nil, state.GetActivePlayer())
-	assert.Equal(t, true, state.GetActivePlayer() == nil)
+	//assert.EqualValues(t, nil, state.GetActivePlayer())
+	assert.Nil(t, state.GetActivePlayer())
 }
 
 func TestGameStart(t *testing.T) {
