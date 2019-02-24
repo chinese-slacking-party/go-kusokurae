@@ -163,10 +163,20 @@ func (p *Card) RoundPlayed() int {
 	return int(C.kusokurae_card_round_played(*(*C.kusokurae_card_t)(unsafe.Pointer(p))))
 }
 
-// GetHandCards returns a slice holding the player's cards. It operates in
-// constant time.
-func (p *Player) GetHandCards() []Card {
+// GetCards returns a slice holding the player's cards. It operates in constant
+// time.
+func (p *Player) GetCards() []Card {
 	return p.hand[0:p.numCards]
+}
+
+// GetHandCards return the player's cards IN HAND (not played yet).
+func (p *Player) GetHandCards() (ret []Card) {
+	for i := 0; i < int(p.numCards); i++ {
+		if p.hand[i].RoundPlayed() == 0 {
+			ret = append(ret, p.hand[i])
+		}
+	}
+	return
 }
 
 // NewGame creates a new game state with specified number of players.
