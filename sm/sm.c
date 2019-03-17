@@ -87,6 +87,13 @@ int16_t urand(void *state) {
     return *istate >> 16;
 }
 
+void game_state_change(kusokurae_game_state_t *g, int32_t newstate) {
+    if (g->cbs.state_transition != NULL) {
+        g->cbs.state_transition(g, newstate, g->cbs.userdata_of_state_transition);
+    }
+    g->status = newstate;
+}
+
 int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card) {
     for (int i = 0; i < player->ncards; i++) {
         if (player->cards[i].rank == card->rank &&
@@ -191,7 +198,8 @@ void kusokurae_set_prng(int16_t (*fn)(void *)) {
 }
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
-                                      kusokurae_game_config_t *cfg) {
+                                      kusokurae_game_config_t *cfg,
+                                      kusokurae_game_callbacks_t *cbs) {
     if (self == NULL || cfg == NULL) {
         return KUSOKURAE_ERROR_NULLPTR;
     }
@@ -201,6 +209,7 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
         return KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS;
     }
     memcpy(&self->cfg, cfg, sizeof(kusokurae_game_config_t));
+    memcpy(&self->cbs, cbs, sizeof(kusokurae_game_callbacks_t));
 
     // Seed the PRNG. You can assign to state later if different seeding is needed
     time_t *state = (time_t *)&self->rng_state;
@@ -209,7 +218,7 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
     // It will be better if nanosecond clock is used as seed.
     urand(state);
 
-    self->status = KUSOKURAE_STATUS_INIT;
+    game_state_change(self, KUSOKURAE_STATUS_INIT);
 
     for (int i = 0; i < self->cfg.np; i++) {
         self->players[i].index = i + 1;
@@ -266,7 +275,7 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     memset(&self->current_round, 0, sizeof(self->current_round));
     // It's 1P (players[0])'s turn now
     self->players[0].active = KUSOKURAE_ROUND_ACTIVE;
-    self->status = KUSOKURAE_STATUS_PLAY;
+    game_state_change(self, KUSOKURAE_STATUS_PLAY);
     self->nround = 0;
     self->high_ranker_index = -1;
     return KUSOKURAE_SUCCESS;
@@ -295,6 +304,7 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
 
     player_set_card_played(p, pos, self->nround + 1);
     p->active = KUSOKURAE_ROUND_DONE;
+    // precord 'pointer to record', not 'pre-cord'
     kusokurae_card_t *precord = &self->current_round[p->index - 1];
     if (!is_zero_card(precord)) {
         // This is the first move in a round (current_round is holding the last
@@ -321,6 +331,11 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
         winner->cards_taken += self->cfg.np;
         winner->score += round_score(self, NULL);
 
+        // Before getting into the next round, call the state change callback to
+        // notify library user.
+        // Here the state does not really 'change'.
+        game_state_change(self, KUSOKURAE_STATUS_PLAY);
+
         // Next round
         for (int i = 0; i < self->cfg.np; i++) {
             self->players[i].active = KUSOKURAE_ROUND_WAITING;
@@ -330,7 +345,7 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
         // Game finish
         self->nround++;
         if (self->nround >= self->players[0].ncards) {
-            self->status = KUSOKURAE_STATUS_FINISH;
+            game_state_change(self, KUSOKURAE_STATUS_FINISH);
         }
     } else {
         nextp->active = KUSOKURAE_ROUND_ACTIVE;

@@ -7,12 +7,20 @@ package sm
 
 extern void goRandom(int16_t *);
 static inline int16_t cgo_random(void *state) {
-    int16_t ret;
+	int16_t ret;
 	goRandom(&ret);
 	return ret;
 }
 static inline void set_prng() {
 	kusokurae_set_prng(&cgo_random);
+}
+
+extern void goGameStateCB(kusokurae_game_state_t *, int32_t, void *);
+static inline void cgo_game_state_cb(kusokurae_game_state_t *self, int32_t newstate, void *userdata) {
+	goGameStateCB(self, newstate, userdata);
+}
+static inline void *get_cgo_cb_bridge_ptr() {
+	return &cgo_game_state_cb;
 }
 */
 import "C"
@@ -20,6 +28,8 @@ import "C"
 import (
 	"errors"
 	"math/rand"
+	"runtime"
+	"sync/atomic"
 	"time"
 	"unsafe"
 )
@@ -30,10 +40,28 @@ func goRandom(out *C.int16_t) {
 	*out = C.int16_t(rnd)
 }
 
+//export goGameStateCB
+func goGameStateCB(self *C.kusokurae_game_state_t, newstate C.int32_t, userdata unsafe.Pointer) {
+	if self == nil {
+		// TODO: bugcheck?
+		return
+	}
+	// userdata is not used
+	obj := (*GameState)(unsafe.Pointer(self))
+	if obj.goStateCallbackNo > 0 {
+		callbackMap[obj.goStateCallbackNo](int32(newstate))
+	}
+}
+
 func init() {
 	C.kusokurae_global_init()
 	rand.Seed(time.Now().UnixNano())
 	C.set_prng()
+	callbackMap = make(map[int32]func(int32))
+}
+
+var cbs = GameCallbacks{
+	StateTransition: uintptr(C.get_cgo_cb_bridge_ptr()),
 }
 
 // Enum: kusokurae_game_status_t
@@ -94,6 +122,12 @@ type GameConfig struct {
 	NumPlayers int32
 }
 
+// GameCallbacks has the same memory layout with C.kusokurae_game_callbacks_t.
+type GameCallbacks struct {
+	UserDataOfStateTransition int // void * in C made int for convenience
+	StateTransition           uintptr
+}
+
 // Card has the same memory layout with C.kusokurae_card_t.
 type Card struct {
 	displayOrder uint32
@@ -122,7 +156,19 @@ type GameState struct {
 	highRanker  int32
 	curRound    [C.KUSOKURAE_MAX_PLAYERS]Card
 	rngState    int64
+	cbs         GameCallbacks
+
+	// Extra fields for Go library users go here
+	// ------- -------
+	// We can't put actual function variable here, because runtime will complain
+	// about cgo argument containing Go pointer.
+	goStateCallbackNo int32
 }
+
+var (
+	nextCBNo    int32
+	callbackMap map[int32]func(int32)
+)
 
 // RoundState corresponds to C.kusokurae_round_state_t, but does not preserve
 // its memory layout - a bit of conversion needs to be done when providing this
@@ -180,13 +226,25 @@ func (p *Player) GetHandCards() (ret []Card) {
 }
 
 // NewGame creates a new game state with specified number of players.
-func NewGame(cfg GameConfig) (ret *GameState, err error) {
-	ret = &GameState{}
+func NewGame(cfg GameConfig, stateFn func(int32)) (ret *GameState, err error) {
+	var cbNo int32
+	if stateFn != nil {
+		cbNo = atomic.AddInt32(&nextCBNo, 1)
+		callbackMap[cbNo] = stateFn
+	}
+	ret = &GameState{
+		goStateCallbackNo: cbNo,
+	}
+	runtime.SetFinalizer(ret, func(g *GameState) {
+		delete(callbackMap, g.goStateCallbackNo)
+	})
 	pret := unsafe.Pointer(ret)
 	pcfg := unsafe.Pointer(&cfg)
+	pcbs := unsafe.Pointer(&cbs)
 	err = errcode2Go(C.kusokurae_game_init(
 		(*C.kusokurae_game_state_t)(pret),
 		(*C.kusokurae_game_config_t)(pcfg),
+		(*C.kusokurae_game_callbacks_t)(pcbs),
 	))
 	return
 }

@@ -7,12 +7,15 @@ extern "C" {
 
 #include "sm.h"
 
+// RAND_MAX used in Microsoft implementation of C rand() which I replicated
 #define MS_RAND_MAX 32767
 
 #define MASK_PLAYED_IN_ROUND    0x7F
 #define MASK_PLAYABLE           0x80
 
 int16_t urand(void *state);
+
+void game_state_change(kusokurae_game_state_t *g, int32_t newstate);
 
 int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card);
 void player_drop_card(kusokurae_player_t *player, int index);

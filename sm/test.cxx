@@ -67,6 +67,10 @@ void test_start(kusokurae_game_state_t *g) {
     print_all_card_slots(g);
 }
 
+void dummy_state_cb(kusokurae_game_state_t *self, int32_t newstate, void *userdata) {
+    std::printf("dummy_state_cb(%p, %d, %p)\n", self, newstate, userdata);
+}
+
 #ifndef WHATEVER_YOU_WANT_TO_INDICATE_CGO
 
 int main(int argc, char *argv[]) {
@@ -74,7 +78,8 @@ int main(int argc, char *argv[]) {
 
     kusokurae_game_config_t cfg = { 3 };
     kusokurae_game_state_t g;
-    kusokurae_game_init(&g, &cfg);
+    kusokurae_game_callbacks_t cbs = { &g, &dummy_state_cb };
+    kusokurae_game_init(&g, &cfg, &cbs);
 
     test_start(&g);
     std::printf("\n%dP has the ghost\n", g.ghost_holder_index + 1);

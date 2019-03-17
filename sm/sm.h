@@ -11,9 +11,20 @@ extern "C" {
 #define KUSOKURAE_MAX_HAND_CARDS    22
 #define KUSOKURAE_MAX_PLAYERS       4
 
+struct kusokurae_game_state_t; // Forward declaration
+
+typedef void (*state_transition_cb)(struct kusokurae_game_state_t *self, int32_t newstate, void *userdata);
+
 typedef struct {
     int32_t np; // Number of players (3 or 4)
 } kusokurae_game_config_t;
+
+typedef struct {
+    // State transition callback - to be called BEFORE each state change and end
+    // of each round.
+    void *userdata_of_state_transition;
+    state_transition_cb state_transition;
+} kusokurae_game_callbacks_t;
 
 typedef enum {
     // 0 - Zero value
@@ -111,7 +122,7 @@ typedef enum {
     KUSOKURAE_ERROR_UNSPECIFIED,
 } kusokurae_error_t;
 
-typedef struct {
+typedef struct kusokurae_game_state_t {
     kusokurae_game_config_t cfg;
     int32_t status;
 
@@ -134,6 +145,10 @@ typedef struct {
 
     // 8 bytes of state for random number generator.
     uint64_t rng_state;
+
+    // Game-specific callbacks should be put at the bottom, because their sizes
+    // are machine-dependent.
+    kusokurae_game_callbacks_t cbs;
 } kusokurae_game_state_t;
 
 typedef struct {
@@ -155,7 +170,8 @@ void kusokurae_global_init();
 void kusokurae_set_prng(int16_t (*fn)(void *));
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
-                                      kusokurae_game_config_t *cfg);
+                                      kusokurae_game_config_t *cfg,
+                                      kusokurae_game_callbacks_t *cbs);
 
 kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self);
 

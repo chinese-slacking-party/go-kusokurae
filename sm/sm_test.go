@@ -9,13 +9,13 @@ import (
 func TestNewGame(t *testing.T) {
 	_, err := NewGame(GameConfig{
 		NumPlayers: 2,
-	})
+	}, nil)
 	assert.Equal(t, ErrBadNPlayers, err)
 
 	correctCfg := GameConfig{
 		NumPlayers: 3,
 	}
-	state, err := NewGame(correctCfg)
+	state, err := NewGame(correctCfg, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, correctCfg, state.cfg)
 	assert.Equal(t, StatusInit, state.status)
@@ -28,7 +28,7 @@ func TestNewGame(t *testing.T) {
 func TestActivePlayerNil(t *testing.T) {
 	state, err := NewGame(GameConfig{
 		NumPlayers: 3,
-	})
+	}, nil)
 	assert.NoError(t, err)
 
 	// bs@bs-newnb-w10:~/go/src/github.com/bs-iron-trio/go-kusokurae/sm$ go test
@@ -47,10 +47,27 @@ func TestActivePlayerNil(t *testing.T) {
 	assert.Nil(t, state.GetActivePlayer())
 }
 
+func TestStateCB(t *testing.T) {
+	var calls int
+	var recordedNewState int32
+	state, err := NewGame(GameConfig{
+		NumPlayers: 4,
+	}, func(newState int32) {
+		calls++
+		recordedNewState = newState
+	})
+	assert.NoError(t, err)
+
+	err = state.Start()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, calls)
+	assert.Equal(t, StatusPlay, recordedNewState)
+}
+
 func TestGameStart(t *testing.T) {
 	state, err := NewGame(GameConfig{
 		NumPlayers: 3,
-	})
+	}, nil)
 	assert.NoError(t, err)
 
 	err = state.Start()
