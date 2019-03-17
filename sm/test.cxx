@@ -12,6 +12,14 @@ void print_card(kusokurae_card_t *p) {
         std::printf("Zero card\n");
         return;
     }
+
+    // If the card is played (not in hand any longer), mark it
+    int rp = kusokurae_card_round_played(*p);
+    if (rp > 0) {
+        std::printf("(%d)~", rp);
+    }
+
+    // Print suit and rank
     switch (p->suit) {
     case KUSOKURAE_SUIT_OTHER:
         std::printf("Ghost\n");
@@ -43,15 +51,20 @@ void test_init() {
     kusokurae_global_init();
 }
 
-void test_start(kusokurae_game_state_t *g) {
+void print_all_card_slots(kusokurae_game_state_t *g) {
     int i, j;
-    kusokurae_game_start(g);
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < KUSOKURAE_MAX_PLAYERS && i < g->cfg.np; i++) {
         std::printf("\n%dP's cards:\n", i + 1);
-        for (j = 0; j < 8; j++) {
+        for (j = 0; j < KUSOKURAE_MAX_HAND_CARDS && j < g->players[i].ncards; j++) {
             print_card(&g->players[i].cards[j]);
         }
     }
+}
+
+void test_start(kusokurae_game_state_t *g) {
+    //print_all_card_slots(g);
+    kusokurae_game_start(g);
+    print_all_card_slots(g);
 }
 
 #ifndef WHATEVER_YOU_WANT_TO_INDICATE_CGO
@@ -59,7 +72,7 @@ void test_start(kusokurae_game_state_t *g) {
 int main(int argc, char *argv[]) {
     test_init();
 
-    kusokurae_game_config_t cfg = { 4 };
+    kusokurae_game_config_t cfg = { 3 };
     kusokurae_game_state_t g;
     kusokurae_game_init(&g, &cfg);
 

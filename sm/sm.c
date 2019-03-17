@@ -195,7 +195,9 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
     if (self == NULL || cfg == NULL) {
         return KUSOKURAE_ERROR_NULLPTR;
     }
-    if (cfg->np < 3 || cfg->np > 4) {
+    if (cfg->np < 3 || cfg->np > KUSOKURAE_MAX_PLAYERS) {
+        // 3 is the absolute minimal for typical (i.e. in which cards are dealed
+        // all at once) card games.
         return KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS;
     }
     memcpy(&self->cfg, cfg, sizeof(kusokurae_game_config_t));
