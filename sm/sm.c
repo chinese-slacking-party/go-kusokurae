@@ -70,7 +70,7 @@ static int round_score(kusokurae_game_state_t *g, int *p_bonus_flag) {
         }
         switch (g->current_round[i].suit) {
         case KUSOKURAE_SUIT_OTHER:
-            *p_bonus_flag++;
+            (*p_bonus_flag)++;
         default:
             ret += g->current_round[i].suit;
         }
