@@ -82,7 +82,8 @@ type Suit int32
 
 // Suit values.
 const (
-	SuitXiang   Suit = -1
+	SuitUnknown Suit = -2 // Not in C enum definition
+	SuitXiang        = -1
 	SuitYoutiao      = 0
 	SuitBaozi        = 1
 	SuitOther        = 2
@@ -281,6 +282,15 @@ func (g *GameState) IsFinalRound() bool {
 func (g *GameState) GetActivePlayer() *Player {
 	cActivePlayer := C.kusokurae_get_active_player(g.cPtr())
 	return (*Player)(unsafe.Pointer(cActivePlayer))
+}
+
+// GetPlayer returns the player with specified index, or nil if index is out of
+// range.
+func (g *GameState) GetPlayer(index int32) *Player {
+	if index < 0 || index >= g.cfg.NumPlayers {
+		return nil
+	}
+	return &g.players[index]
 }
 
 // GetRoundState returns some useful info about the current round.
