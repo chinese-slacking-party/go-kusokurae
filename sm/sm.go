@@ -49,7 +49,7 @@ func goGameStateCB(self *C.kusokurae_game_state_t, newstate C.int32_t, userdata 
 	// userdata is not used
 	obj := (*GameState)(unsafe.Pointer(self))
 	if obj.goStateCallbackNo > 0 {
-		callbackMap[obj.goStateCallbackNo](int32(newstate))
+		callbackMap[obj.goStateCallbackNo](GameStatus(newstate))
 	}
 }
 
@@ -57,16 +57,19 @@ func init() {
 	C.kusokurae_global_init()
 	rand.Seed(time.Now().UnixNano())
 	C.set_prng()
-	callbackMap = make(map[int32]func(int32))
+	callbackMap = make(map[int32]func(GameStatus))
 }
 
 var cbs = GameCallbacks{
 	StateTransition: uintptr(C.get_cgo_cb_bridge_ptr()),
 }
 
-// Enum: kusokurae_game_status_t
+// GameStatus is equivalent to kusokurae_game_status_t.
+type GameStatus int32
+
+// GameStatus values.
 const (
-	StatusNull int32 = iota
+	StatusNull GameStatus = iota
 	StatusInit
 	StatusPlay
 	StatusFinish
@@ -85,9 +88,11 @@ const (
 	SuitOther        = 2
 )
 
-// Enum: kusokurae_round_status_t
+// RoundStatus is equivalent to C.kusokurae_round_status_t.
+type RoundStatus int32
+
 const (
-	RoundWaiting int32 = iota
+	RoundWaiting RoundStatus = iota
 	RoundActive
 	RoundDone
 )
@@ -139,7 +144,7 @@ type Card struct {
 // Player has the same memory layout with C.kusokurae_player_t.
 type Player struct {
 	index      int32
-	active     int32 // C.kusokurae_round_status_t
+	active     RoundStatus
 	allCards   [C.KUSOKURAE_MAX_HAND_CARDS]Card
 	numCards   int32
 	cardsTaken int32
@@ -149,7 +154,7 @@ type Player struct {
 // GameState has the same memory layout with C.kusokurae_game_state_t.
 type GameState struct {
 	cfg         GameConfig
-	status      int32
+	status      GameStatus
 	players     [C.KUSOKURAE_MAX_PLAYERS]Player
 	numRound    int32
 	ghostHolder int32
@@ -167,7 +172,7 @@ type GameState struct {
 
 var (
 	nextCBNo    int32
-	callbackMap map[int32]func(int32)
+	callbackMap map[int32]func(GameStatus)
 )
 
 // RoundState corresponds to C.kusokurae_round_state_t, but does not preserve
@@ -226,7 +231,7 @@ func (p *Player) GetHandCards() (ret []Card) {
 }
 
 // NewGame creates a new game state with specified number of players.
-func NewGame(cfg GameConfig, stateFn func(int32)) (ret *GameState, err error) {
+func NewGame(cfg GameConfig, stateFn func(GameStatus)) (ret *GameState, err error) {
 	var cbNo int32
 	if stateFn != nil {
 		cbNo = atomic.AddInt32(&nextCBNo, 1)

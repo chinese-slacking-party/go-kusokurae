@@ -49,10 +49,10 @@ func TestActivePlayerNil(t *testing.T) {
 
 func TestStateCB(t *testing.T) {
 	var calls int
-	var recordedNewState int32
+	var recordedNewState GameStatus
 	state, err := NewGame(GameConfig{
 		NumPlayers: 4,
-	}, func(newState int32) {
+	}, func(newState GameStatus) {
 		calls++
 		recordedNewState = newState
 	})
