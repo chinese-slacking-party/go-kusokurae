@@ -232,26 +232,29 @@ func (p *Player) GetHandCards() (ret []Card) {
 
 // NewGame creates a new game state with specified number of players.
 func NewGame(cfg GameConfig, stateFn func(GameStatus)) (ret *GameState, err error) {
+	ret = &GameState{}
+	err = ret.init(cfg, stateFn)
+	return
+}
+
+func (g *GameState) init(cfg GameConfig, stateFn func(GameStatus)) error {
 	var cbNo int32
 	if stateFn != nil {
 		cbNo = atomic.AddInt32(&nextCBNo, 1)
 		callbackMap[cbNo] = stateFn
 	}
-	ret = &GameState{
-		goStateCallbackNo: cbNo,
-	}
-	runtime.SetFinalizer(ret, func(g *GameState) {
+	g.goStateCallbackNo = cbNo
+	runtime.SetFinalizer(g, func(g *GameState) {
 		delete(callbackMap, g.goStateCallbackNo)
 	})
-	pret := unsafe.Pointer(ret)
+	pret := unsafe.Pointer(g)
 	pcfg := unsafe.Pointer(&cfg)
 	pcbs := unsafe.Pointer(&cbs)
-	err = errcode2Go(C.kusokurae_game_init(
+	return errcode2Go(C.kusokurae_game_init(
 		(*C.kusokurae_game_state_t)(pret),
 		(*C.kusokurae_game_config_t)(pcfg),
 		(*C.kusokurae_game_callbacks_t)(pcbs),
 	))
-	return
 }
 
 func (g *GameState) cPtr() *C.kusokurae_game_state_t {
