@@ -187,7 +187,6 @@ void kusokurae_global_init() {
     for (i = 0; i < KUSOKURAE_DECK_SIZE; i++) {
         DECK[i].flags = 0;
     }
-    //print_cards(DECK, KUSOKURAE_DECK_SIZE);
 
     // Use the default PRNG
     rng = &urand;
@@ -211,7 +210,11 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
         return KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS;
     }
     memcpy(&self->cfg, cfg, sizeof(kusokurae_game_config_t));
-    memcpy(&self->cbs, cbs, sizeof(kusokurae_game_callbacks_t));
+    if (cbs != NULL) {
+        memcpy(&self->cbs, cbs, sizeof(kusokurae_game_callbacks_t));
+    } else {
+        memset(&self->cbs, 0, sizeof(kusokurae_game_callbacks_t));
+    }
 
     // Seed the PRNG. You can assign to state later if different seeding is needed
     time_t *state = (time_t *)&self->rng_state;
@@ -358,6 +361,9 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
 }
 
 int kusokurae_game_is_final_round(kusokurae_game_state_t *self) {
+    if (self == NULL) {
+        return 1; // End the caller as soon as possible
+    }
     if (self->nround + 1 >= self->players[0].ncards) {
         return 1;
     }
@@ -365,6 +371,9 @@ int kusokurae_game_is_final_round(kusokurae_game_state_t *self) {
 }
 
 kusokurae_player_t *kusokurae_get_active_player(kusokurae_game_state_t *self) {
+    if (self == NULL) {
+        return NULL;
+    }
     for (int i = 0; i < KUSOKURAE_MAX_PLAYERS; i++) {
         if (self->players[i].active == KUSOKURAE_ROUND_ACTIVE) {
             return &self->players[i];
@@ -376,7 +385,6 @@ kusokurae_player_t *kusokurae_get_active_player(kusokurae_game_state_t *self) {
 void kusokurae_get_round_state(kusokurae_game_state_t *self,
                                kusokurae_round_state_t *out) {
     if (self == NULL || out == NULL) {
-        // NULL guard - should be in every 'public' function
         return;
     }
 
