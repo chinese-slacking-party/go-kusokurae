@@ -48,7 +48,7 @@ static int compcard(const void *lhs, const void *rhs) {
 }
 
 static int compcard2(const void *lhs, const void *rhs) {
-    return ((const kusokurae_card_t *)rhs)->rank - ((const kusokurae_card_t *)lhs)->rank;
+    return ((const kusokurae_card_t *)lhs)->rank - ((const kusokurae_card_t *)rhs)->rank;
 }
 
 static int is_zero_card(kusokurae_card_t *p) {
@@ -72,7 +72,9 @@ static int round_score(kusokurae_game_state_t *g, int *p_bonus_flag) {
         case KUSOKURAE_SUIT_OTHER:
             (*p_bonus_flag)++;
         default:
-            ret += g->current_round[i].suit;
+            if (g->current_round[i].suit != KUSOKURAE_SUIT_OTHER) {
+                ret += g->current_round[i].suit;
+            }
         }
     }
     ret <<= *p_bonus_flag;
@@ -313,10 +315,10 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
 
     // Update current round winner
     if (self->high_ranker_index < 0) {
-        self->high_ranker_index = 0;
+        self->high_ranker_index = p->index - 1;
     } else {
         if (compcard2(&self->current_round[self->high_ranker_index],
-                      &self->current_round[p->index - 1]) > 0) {
+                      &self->current_round[p->index - 1]) < 0) {
             self->high_ranker_index = p->index - 1;
         }
     }
