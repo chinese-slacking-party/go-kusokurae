@@ -218,8 +218,6 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
     // It will be better if nanosecond clock is used as seed.
     urand(state);
 
-    game_state_change(self, KUSOKURAE_STATUS_INIT);
-
     for (int i = 0; i < self->cfg.np; i++) {
         self->players[i].index = i + 1;
     }
@@ -258,7 +256,6 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     int i;
     // Set up player data and find the ghost holder.
     for (i = 0; i < self->cfg.np; i++) {
-        //print_cards(self->players[i].cards, counteach);
         self->players[i].index = i + 1;
         self->players[i].active = KUSOKURAE_ROUND_WAITING;
         self->players[i].ncards = counteach;
@@ -276,6 +273,7 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     // It's 1P (players[0])'s turn now
     self->players[0].active = KUSOKURAE_ROUND_ACTIVE;
     game_state_change(self, KUSOKURAE_STATUS_PLAY);
+    player_set_playable_flags(&self->players[0], 1);
     self->nround = 0;
     self->high_ranker_index = -1;
     return KUSOKURAE_SUCCESS;
@@ -340,6 +338,8 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
         for (int i = 0; i < self->cfg.np; i++) {
             self->players[i].active = KUSOKURAE_ROUND_WAITING;
         }
+        player_set_playable_flags(winner, 1);
+        self->high_ranker_index = -1;
         winner->active = KUSOKURAE_ROUND_ACTIVE;
 
         // Game finish
@@ -348,6 +348,7 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
             game_state_change(self, KUSOKURAE_STATUS_FINISH);
         }
     } else {
+        player_set_playable_flags(nextp, 0);
         nextp->active = KUSOKURAE_ROUND_ACTIVE;
     }
 
