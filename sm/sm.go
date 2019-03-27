@@ -215,6 +215,22 @@ func (p *Card) RoundPlayed() int {
 	return int(C.kusokurae_card_round_played(*(*C.kusokurae_card_t)(unsafe.Pointer(p))))
 }
 
+// GetIndex returns the index of the player (1-based).
+func (p *Player) GetIndex() int {
+	return int(p.index)
+}
+
+// GetRoundStatus returns if the player is waiting to play, playing, or played
+// in the current round.
+func (p *Player) GetRoundStatus() RoundStatus {
+	return p.active
+}
+
+// GetScore returns a player's accumulated score in this game.
+func (p *Player) GetScore() int {
+	return int(p.score)
+}
+
 // GetCards returns a slice holding the player's cards. It operates in constant
 // time.
 func (p *Player) GetCards() []Card {
@@ -260,6 +276,16 @@ func (g *GameState) init(cfg GameConfig, stateFn func(GameStatus)) error {
 
 func (g *GameState) cPtr() *C.kusokurae_game_state_t {
 	return (*C.kusokurae_game_state_t)(unsafe.Pointer(g))
+}
+
+// GetConfig returns a copy of cfg.
+func (g *GameState) GetConfig() GameConfig {
+	return g.cfg
+}
+
+// GetStatus returns g's status.
+func (g *GameState) GetStatus() GameStatus {
+	return g.status
 }
 
 // Start deals cards to each player and begins waiting for play from the first
