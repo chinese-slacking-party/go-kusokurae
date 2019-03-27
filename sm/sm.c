@@ -136,15 +136,32 @@ void player_set_card_playable(kusokurae_player_t *player, int index, int status)
 }
 
 void player_set_playable_flags(kusokurae_player_t *player, int is_leader) {
-    int i, status;
+    int i, status, goodcnt = 0, badcnt = 0, lastrank = 0;
     for (i = 0; i < player->ncards; i++) {
+        if (kusokurae_card_round_played(player->cards[i])) {
+            continue;
+        }
         if (!is_leader || player->cards[i].rank > 0) {
             status = 1;
+            goodcnt++;
+            lastrank = player->cards[i].rank;
         } else {
-            // Leader can't play rank 0 (unless the game is in final round)
+            // Leader can't play rank 0 unless he/she has NO CHOICE
             status = 0;
+            badcnt++;
         }
         player_set_card_playable(player, i, status);
+    }
+    if (!goodcnt && badcnt) {
+        // NO CHOICE
+        for (i = 0; i < player->ncards; i++) {
+            player_set_card_playable(player, i, 1);
+        }
+        player->busted = 1;
+    }
+    if (goodcnt == 1 && lastrank == 0) {
+        // A Zero held back
+        player->busted = 1;
     }
 }
 
@@ -264,6 +281,7 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         self->players[i].index = i + 1;
         self->players[i].active = KUSOKURAE_ROUND_WAITING;
         self->players[i].ncards = counteach;
+        self->players[i].busted = 0;
         if (self->players[i].cards[0].suit == KUSOKURAE_SUIT_OTHER ||
             self->players[i].cards[1].suit == KUSOKURAE_SUIT_OTHER ||
             self->players[i].cards[2].suit == KUSOKURAE_SUIT_OTHER) {

@@ -151,6 +151,7 @@ type Player struct {
 	numCards   int32
 	cardsTaken int32
 	score      int32
+	busted     int32
 }
 
 // GameState has the same memory layout with C.kusokurae_game_state_t.
@@ -244,9 +245,15 @@ func (p *Player) GetRoundStatus() RoundStatus {
 	return p.active
 }
 
-// GetScore returns a player's accumulated score in this game.
+// GetScore returns the player's accumulated score in this game.
 func (p *Player) GetScore() int {
 	return int(p.score)
+}
+
+// IsBusted returns whether the player is busted (see comment in sm.c for the
+// Kusokurae definition of 'busted').
+func (p *Player) IsBusted() bool {
+	return p.busted != 0
 }
 
 // GetCards returns a slice holding the player's cards. It operates in constant

@@ -106,6 +106,10 @@ typedef struct {
 
     // The score accumulated from cards_taken.
     int32_t score;
+
+    // When you say a player is busted, it means he/she is forced to play
+    // forbidden moves because no other card's available.
+    int32_t busted;
 } kusokurae_player_t;
 
 typedef enum {
