@@ -27,6 +27,7 @@ import "C"
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 	"runtime"
 	"sync/atomic"
@@ -194,6 +195,10 @@ func errcode2Go(code C.kusokurae_error_t) (err error) {
 	return
 }
 
+func (p *Card) cPtr() *C.kusokurae_card_t {
+	return (*C.kusokurae_card_t)(unsafe.Pointer(p))
+}
+
 // GetSuit returns the Card's intrinsic value.
 func (p *Card) GetSuit() Suit {
 	return p.suit
@@ -204,15 +209,28 @@ func (p *Card) GetRank() int {
 	return int(p.rank)
 }
 
+func (p Card) String() string {
+	sign := ""
+	if p.suit == SuitOther {
+		sign = "x"
+	}
+	ret := fmt.Sprintf("%d(%s%d)", p.rank, sign, p.suit)
+	played := C.kusokurae_card_round_played(*p.cPtr())
+	if played > 0 {
+		ret += fmt.Sprintf(", played=%d", played)
+	}
+	return ret
+}
+
 // Playable checks whether the card is legal move now.
 func (p *Card) Playable() bool {
-	return (C.kusokurae_card_is_playable(*(*C.kusokurae_card_t)(unsafe.Pointer(p))) != 0)
+	return (C.kusokurae_card_is_playable(*p.cPtr()) != 0)
 }
 
 // RoundPlayed returns the round number in which the card is played, or 0 if it
 // is still in hand.
 func (p *Card) RoundPlayed() int {
-	return int(C.kusokurae_card_round_played(*(*C.kusokurae_card_t)(unsafe.Pointer(p))))
+	return int(C.kusokurae_card_round_played(*p.cPtr()))
 }
 
 // GetIndex returns the index of the player (1-based).

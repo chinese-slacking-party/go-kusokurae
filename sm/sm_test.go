@@ -1,6 +1,7 @@
 package sm
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -93,4 +94,25 @@ func TestGameStart(t *testing.T) {
 			cards[order] = true
 		}
 	}
+}
+
+func TestCardString(t *testing.T) {
+	assert.Equal(t, "8(-1)", fmt.Sprintf("%v", Card{
+		suit: SuitXiang,
+		rank: 8,
+	}))
+	assert.Equal(t, "10(x2)", fmt.Sprintf("%v", Card{
+		displayOrder: 3,
+		suit:         SuitOther,
+		rank:         10,
+	}))
+	assert.Equal(t, "1(1), played=1", Card{
+		suit:  SuitBaozi,
+		rank:  1,
+		flags: 1,
+	}.String())
+	assert.Equal(t, "[2(0) 3(0)]", fmt.Sprint([]Card{
+		{0, SuitYoutiao, 2, 128},
+		{0, SuitYoutiao, 3, 128},
+	}))
 }
