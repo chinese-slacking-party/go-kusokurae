@@ -18,7 +18,6 @@ func TestNewGame(t *testing.T) {
 	state, err := NewGame(correctCfg, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, correctCfg, state.cfg)
-	assert.Equal(t, StatusInit, state.status)
 	assert.Equal(t, 1, int(state.players[0].index))
 	assert.Equal(t, 2, int(state.players[1].index))
 	assert.Equal(t, 3, int(state.players[2].index))
@@ -60,7 +59,7 @@ func TestStateCB(t *testing.T) {
 
 	err = state.Start()
 	assert.NoError(t, err)
-	assert.Equal(t, 2, calls)
+	assert.Equal(t, 1, calls)
 	assert.Equal(t, StatusPlay, recordedNewState)
 }
 
