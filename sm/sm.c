@@ -420,12 +420,22 @@ void kusokurae_get_round_state(kusokurae_game_state_t *self,
         return;
     }
     int i = 0;
+    kusokurae_card_t *move;
     do {
         head = player_find_next(self, head);
-        if (head->active == KUSOKURAE_ROUND_WAITING) {
-            break;
+        move = &self->current_round[head->index - 1];
+        if (is_zero_card(move)) {
+            if (i > 0) {
+                // List end
+                break;
+            }
         } else {
-            out->moves[i++] = self->current_round[head->index - 1];
+            if (head->active == KUSOKURAE_ROUND_WAITING) {
+                // Round beginning
+                break;
+            } else {
+                out->moves[i++] = *move;
+            }
         }
     } while (head != tail);
 }

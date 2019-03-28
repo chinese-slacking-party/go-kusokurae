@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"os"
 
 	"github.com/bs-iron-trio/go-kusokurae/sm"
 )
@@ -63,9 +65,13 @@ func game(G *sm.GameState) {
 		if len(cards) < 2 {
 			move = 0
 		} else {
+			fmt.Printf("前面人出的牌：%v\n", g.GetRoundState().Moves)
 			fmt.Printf("要出哪张牌？[0-%d] ", len(cards)-1)
 			_, err = fmt.Scanf("%d", &move)
 			if err != nil {
+				if err == io.EOF {
+					os.Exit(0)
+				}
 				log.Println(err)
 				goto prompt
 			}
