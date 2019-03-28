@@ -218,7 +218,7 @@ func (p Card) String() string {
 	ret := fmt.Sprintf("%d(%s%d)", p.rank, sign, p.suit)
 	played := C.kusokurae_card_round_played(*p.cPtr())
 	if played > 0 {
-		ret += fmt.Sprintf(", played=%d", played)
+		ret += fmt.Sprintf(",played=%d", played)
 	}
 	return ret
 }

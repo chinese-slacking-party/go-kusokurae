@@ -8,12 +8,6 @@
 static kusokurae_card_t DECK[KUSOKURAE_DECK_SIZE];
 static int16_t (*rng)(void *);
 
-static void print_cards(kusokurae_card_t *base, size_t count) {
-    for (int i = 0; i < count; i++) {
-        printf("%p %d %d %d\n", &base[i], base[i].suit, base[i].rank, base[i].display_order);
-    }
-}
-
 static void sample(void *ptr, size_t count, size_t size,
                    size_t wanted, void *pchosen, void *pdiscarded,
                    void *rng_state) {
@@ -157,7 +151,7 @@ void player_set_playable_flags(kusokurae_player_t *player, int is_leader) {
         for (i = 0; i < player->ncards; i++) {
             player_set_card_playable(player, i, 1);
         }
-        player->busted = 1;
+        player->busted = 2;
     }
     if (goodcnt == 1 && lastrank == 0) {
         // A Zero held back

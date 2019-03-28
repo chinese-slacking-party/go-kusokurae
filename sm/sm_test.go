@@ -106,7 +106,7 @@ func TestCardString(t *testing.T) {
 		suit:         SuitOther,
 		rank:         10,
 	}))
-	assert.Equal(t, "1(1), played=1", Card{
+	assert.Equal(t, "1(1),played=1", Card{
 		suit:  SuitBaozi,
 		rank:  1,
 		flags: 1,
