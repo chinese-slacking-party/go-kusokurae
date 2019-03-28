@@ -20,11 +20,11 @@ static void sample(void *ptr, size_t count, size_t size,
         threshold = (MS_RAND_MAX + 1ULL) * rwanted / rcount;
         //printf("%ld wanted, %ld remaining, %lld/%lld\n", rwanted, rcount, dice, threshold);
         if (dice < threshold) {
-            memcpy(pdst, psrc, size);
+            memmove(pdst, psrc, size);
             pdst += size;
             rwanted--;
         } else {
-            memcpy(prej, psrc, size);
+            memmove(prej, psrc, size);
             prej += size;
         }
         psrc += size;
@@ -220,9 +220,9 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
         // all at once) card games.
         return KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS;
     }
-    memcpy(&self->cfg, cfg, sizeof(kusokurae_game_config_t));
+    memmove(&self->cfg, cfg, sizeof(kusokurae_game_config_t));
     if (cbs != NULL) {
-        memcpy(&self->cbs, cbs, sizeof(kusokurae_game_callbacks_t));
+        memmove(&self->cbs, cbs, sizeof(kusokurae_game_callbacks_t));
     } else {
         memset(&self->cbs, 0, sizeof(kusokurae_game_callbacks_t));
     }
