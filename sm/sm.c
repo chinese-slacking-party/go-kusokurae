@@ -318,7 +318,6 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
     }
 
     player_set_card_played(p, pos, self->nround + 1);
-    p->active = KUSOKURAE_ROUND_DONE;
     // precord 'pointer to record', not 'pre-cord'
     kusokurae_card_t *precord = &self->current_round[p->index - 1];
     if (!is_zero_card(precord)) {
@@ -366,6 +365,7 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
         }
     } else {
         player_set_playable_flags(nextp, 0);
+        p->active = KUSOKURAE_ROUND_DONE;
         nextp->active = KUSOKURAE_ROUND_ACTIVE;
     }
 
@@ -400,8 +400,8 @@ void kusokurae_get_round_state(kusokurae_game_state_t *self,
         return;
     }
 
-    // Not very useful, because the following two values are already available
-    // in *self. This function is mainly for future extension.
+    // The following two values are already available in *self and put here for
+    // convenience.
     out->seq = self->nround + 1;
     out->round_winner = self->high_ranker_index;
 
@@ -412,6 +412,22 @@ void kusokurae_get_round_state(kusokurae_game_state_t *self,
     } else {
         out->is_doubled = 0;
     }
+
+    memset(&out->moves, 0, KUSOKURAE_MAX_PLAYERS * sizeof(kusokurae_card_t));
+    // Get current round's moves.
+    kusokurae_player_t *tail = kusokurae_get_active_player(self), *head = tail;
+    if (head == NULL) {
+        return;
+    }
+    int i = 0;
+    do {
+        head = player_find_next(self, head);
+        if (head->active == KUSOKURAE_ROUND_WAITING) {
+            break;
+        } else {
+            out->moves[i++] = self->current_round[head->index - 1];
+        }
+    } while (head != tail);
 }
 
 inline int kusokurae_card_is_playable(kusokurae_card_t card) {

@@ -167,6 +167,11 @@ typedef struct {
 
     // The current winning player
     int32_t round_winner;
+
+    // Moves made in this round, ordered chronologically (e.g. if there're 3
+    // players and the trick leader is 2P, then moves[0] is 2P's move, moves[1]
+    // is 3P's move, moves[2] is 1P's move, and moves[3] is unused)
+    kusokurae_card_t moves[KUSOKURAE_MAX_PLAYERS];
 } kusokurae_round_state_t;
 
 void kusokurae_global_init();

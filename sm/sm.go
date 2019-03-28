@@ -186,6 +186,7 @@ type RoundState struct {
 	IsDoubled    bool
 	ScoreOnBoard int
 	RoundWinner  *Player
+	Moves        []Card
 }
 
 func errcode2Go(code C.kusokurae_error_t) (err error) {
@@ -194,6 +195,11 @@ func errcode2Go(code C.kusokurae_error_t) (err error) {
 		err = ErrUnknown
 	}
 	return
+}
+
+// Valid returns true if p points to valid Card data.
+func (p *Card) Valid() bool {
+	return p.displayOrder != 0
 }
 
 func (p *Card) cPtr() *C.kusokurae_card_t {
@@ -356,6 +362,15 @@ func (g *GameState) GetRoundState() (ret RoundState) {
 	}
 	ret.ScoreOnBoard = int(cRoundState.score_on_board)
 	ret.Seq = int(cRoundState.seq)
+
+	var move *Card
+	for i := range cRoundState.moves {
+		move = (*Card)(unsafe.Pointer(&cRoundState.moves[i]))
+		if !move.Valid() {
+			break
+		}
+		ret.Moves = append(ret.Moves, *move)
+	}
 	return
 }
 
