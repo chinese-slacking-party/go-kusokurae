@@ -49,6 +49,9 @@ func main() {
 		inspectAllHandCards(g)
 	}
 	game(g)
+	for i := int32(0); i < cfg.NumPlayers; i++ {
+		fmt.Print(g.GetPlayer(i))
+	}
 }
 
 func game(G *sm.GameState) {

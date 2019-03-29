@@ -262,6 +262,10 @@ func (p *Player) IsBusted() bool {
 	return p.busted != 0
 }
 
+func (p *Player) String() string {
+	return fmt.Sprintf("%dP - %d cards, %d points\nCardset: %v\n", p.index, p.cardsTaken, p.score, p.GetCards())
+}
+
 // GetCards returns a slice holding the player's cards. It operates in constant
 // time.
 func (p *Player) GetCards() []Card {
