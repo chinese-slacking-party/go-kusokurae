@@ -50,7 +50,7 @@ func main() {
 	}
 	game(g)
 	for i := int32(0); i < cfg.NumPlayers; i++ {
-		fmt.Print(g.GetPlayer(i))
+		log.Print(g.GetPlayer(i))
 	}
 }
 
@@ -68,7 +68,7 @@ func game(G *sm.GameState) {
 		if len(cards) < 2 {
 			move = 0
 		} else {
-			fmt.Printf("前面人出的牌：%v\n", g.GetRoundState().Moves)
+			log.Println("Current round:", g.GetRoundState().Moves)
 			fmt.Printf("要出哪张牌？[0-%d] ", len(cards)-1)
 			_, err = fmt.Scanf("%d", &move)
 			if err != nil {

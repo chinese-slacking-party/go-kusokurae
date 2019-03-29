@@ -17,7 +17,7 @@ func roundOrStateChange(state sm.GameStatus) {
 	if rs.IsDoubled {
 		fmt.Printf("，已翻倍")
 	}
-	fmt.Printf("，出过的牌：%v\n", rs.Moves)
+	fmt.Println()
 	fmt.Printf("玩家 %d 大，得分 %d\n", rs.RoundWinner.GetIndex(), rs.ScoreOnBoard)
 	fmt.Print(g.GetPlayer(0).GetScore())
 	for i := int32(1); i < g.GetConfig().NumPlayers; i++ {
