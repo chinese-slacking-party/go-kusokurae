@@ -12,3 +12,6 @@ experimental/sm/sm
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+# Output of vscode-go debugging
+debug
