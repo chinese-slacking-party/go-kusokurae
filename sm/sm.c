@@ -59,12 +59,14 @@ static int round_score(kusokurae_game_state_t *g, int *p_bonus_flag) {
     }
     *p_bonus_flag = 0;
     for (int i = 0; i < KUSOKURAE_MAX_PLAYERS; i++) {
-        if (!g->current_round[i].display_order) {
+        if (is_zero_card(&g->current_round[i])) {
             continue;
         }
         switch (g->current_round[i].suit) {
         case KUSOKURAE_SUIT_OTHER:
-            (*p_bonus_flag)++;
+            if (i == g->high_ranker_index) {
+                (*p_bonus_flag)++;
+            }
         default:
             if (g->current_round[i].suit != KUSOKURAE_SUIT_OTHER) {
                 ret += g->current_round[i].suit;
