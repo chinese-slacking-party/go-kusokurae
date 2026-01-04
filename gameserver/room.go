@@ -17,7 +17,7 @@ func InitRoomRepository() {
 }
 
 // 创建游戏房间
-func createRoom(ctx *gin.Context) {
+func CreateRoom(ctx *gin.Context) {
 	u, err := uuid.NewRandom()
 	if err != nil {
 		ctx.JSON(200, NewErrorRes(COMMON_ERR_CODE, err.Error()))

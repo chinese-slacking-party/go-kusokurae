@@ -8,7 +8,8 @@ import (
 var upgrader = websocket.Upgrader{}
 
 func main() {
+	InitRoomRepository()
 	r := gin.Default()
-	r.POST("/api/v1/room/new", createRoom)
+	r.POST("/api/v1/room/new", CreateRoom)
 	r.Run()
 }
