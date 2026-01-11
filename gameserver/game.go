@@ -1,4 +1,4 @@
-package main
+package gameserver
 
 import "github.com/bs-iron-trio/go-kusokurae/sm"
 
