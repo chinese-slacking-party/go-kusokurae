@@ -6,6 +6,8 @@ type Player struct {
 	ID            string
 	RoomID        string
 	RoomPosistion int32
+	NoticeCh      chan Message
+	OperatorCh    chan Message
 }
 
 func NewPlayer() *Player {
@@ -17,6 +19,8 @@ func NewPlayer() *Player {
 		ID:            u.String(),
 		RoomID:        "",
 		RoomPosistion: -1,
+		NoticeCh:      make(chan Message),
+		OperatorCh:    make(chan Message),
 	}
 }
 

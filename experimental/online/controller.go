@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/bs-iron-trio/go-kusokurae/sm"
@@ -17,7 +16,7 @@ var upgrader = websocket.Upgrader{}
 
 type CommunicationParams struct {
 	RoomID   string `uri:"room_id" binding:"required"`
-	PlayerId string `uri:"player_id" binding:"required"`
+	PlayerID string `uri:"player_id" binding:"required"`
 }
 
 func handleWebSocket(c *gin.Context) {
@@ -42,24 +41,36 @@ func handleWebSocket(c *gin.Context) {
 		},
 	})
 
-	// 处理连接
-	for {
-		var msg gameserver.Message
-		// 读取消息
-		if err := conn.ReadJSON(&msg); err != nil {
-			log.Println("Warning: 写入消息失败: ", err)
-			break
-		}
-
-		// 打印接收到的消息
-		log.Println("Received:", &msg)
-
-		// 回传消息
-		if err := conn.WriteJSON(&msg); err != nil {
-			log.Println("Warning: 写入消息失败: ", err)
-			break
-		}
+	room, err := gameserver.GetRoomByID(params.RoomID)
+	if err != nil {
+		conn.WriteJSON(&gameserver.Message{
+			MsgType: gameserver.MSG_TYPE_FATAL,
+			MsgBody: &gameserver.SMSMesssageBody{
+				Data: err.Error(),
+			},
+		})
+		return
 	}
+
+	player, err := room.FindPlayerByID(params.PlayerID)
+	if err != nil {
+		conn.WriteJSON(&gameserver.Message{
+			MsgType: gameserver.MSG_TYPE_FATAL,
+			MsgBody: &gameserver.SMSMesssageBody{
+				Data: err.Error(),
+			},
+		})
+		return
+	}
+
+	s := gameserver.NewSession(conn, player)
+
+	go s.SessionControl(c.Request.Context())
+	go s.Input(c.Request.Context())
+	go s.Output(c.Request.Context())
+
+	<-s.ColsedCh
+
 }
 
 // 创建游戏房间

@@ -1,6 +1,7 @@
 package gameserver
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -83,5 +84,9 @@ func (r *Room) Ready(playerID string, ReadyStatus bool) error {
 		}
 	}
 	return ErrRoomPlayerNotFound
+
+}
+
+func (r *Room) RoomFn(ctx context.Context) {
 
 }
