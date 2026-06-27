@@ -55,10 +55,10 @@ func (p *Player) WriteControlSignalFn(ctx context.Context) {
 		msg := <-p.NoticeCh
 		joystick := p.getJoystick()
 		if joystick == nil {
-			log.Println("discards msg: %v", msg)
+			log.Println("discards msg: ", msg)
 		} else {
 			if err := p.joystick.WriteMessage(msg); err != nil {
-				log.Println("write msg into joystick error: %s", err.Error())
+				log.Println("write msg into joystick error: ", err.Error())
 				p.setJoystick(nil)
 			}
 		}
@@ -70,7 +70,7 @@ func (p *Player) ReadControlSignalFn(ctx context.Context) {
 		joystick := p.getJoystick()
 		msg, err := joystick.ReadMessage()
 		if err != nil {
-			log.Println("read msg from joystick error %s", err.Error())
+			log.Println("read msg from joystick error: ", err.Error())
 			p.setJoystick(nil)
 			break
 		}
