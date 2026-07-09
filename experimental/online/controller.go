@@ -1,18 +1,18 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 
+	"github.com/bs-iron-trio/go-kusokurae/gameserver"
 	"github.com/bs-iron-trio/go-kusokurae/sm"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-
-	"github.com/bs-iron-trio/go-kusokurae/gameserver"
 )
 
-var upgrader = websocket.Upgrader{}
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
 
 type CommunicationParams struct {
 	RoomID   string `uri:"room_id" binding:"required"`
@@ -26,42 +26,40 @@ func handleWebSocket(c *gin.Context) {
 		return
 	}
 
-	// 升级 HTTP 连接到 WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, err.Error()))
 		return
 	}
-	defer conn.Close()
-
-	conn.WriteJSON(&gameserver.Message{
-		MsgType: gameserver.MSG_TYPE_SMS,
-		MsgBody: &gameserver.SMSMesssageBody{
-			Data: "Hello Welcome Join the Room",
-		},
-	})
 
 	room, err := gameserver.GetRoomByID(params.RoomID)
 	if err != nil {
 		conn.WriteJSON(&gameserver.Message{
-			MsgType: gameserver.MSG_TYPE_FATAL,
-			MsgBody: &gameserver.SMSMesssageBody{
-				Data: err.Error(),
-			},
+			MsgType: gameserver.MSG_TYPE_ERROR,
+			MsgBody: &gameserver.ErrorBody{Message: err.Error()},
 		})
+		conn.Close()
 		return
 	}
 
 	player, err := room.FindPlayerByID(params.PlayerID)
 	if err != nil {
 		conn.WriteJSON(&gameserver.Message{
-			MsgType: gameserver.MSG_TYPE_FATAL,
-			MsgBody: &gameserver.SMSMesssageBody{
-				Data: err.Error(),
-			},
+			MsgType: gameserver.MSG_TYPE_ERROR,
+			MsgBody: &gameserver.ErrorBody{Message: err.Error()},
 		})
+		conn.Close()
 		return
 	}
+
+	// Handle reconnect: close old session if exists
+	if player.Session != nil {
+		player.Session.Conn.Close()
+		<-player.Session.ClosedCh
+	}
+
+	// Replace Disconnected chan for fresh connection
+	player.Disconnected = make(chan struct{})
 
 	s := gameserver.NewSession(conn, player)
 
@@ -69,14 +67,48 @@ func handleWebSocket(c *gin.Context) {
 	go s.Input(c.Request.Context())
 	go s.Output(c.Request.Context())
 
-	<-s.ClosedCh
+	// If game is in progress, re-sync state to the reconnected player
+	if room.Game != nil && room.Game.State != nil && room.Game.State.GetStatus() == sm.StatusPlay {
+		activePlayer := room.Game.State.GetActivePlayer()
+		if activePlayer != nil && activePlayer.GetIndex()-1 == int(player.RoomPosition) {
+			// Reconnected player is the active player — re-send YOUR_TURN
+			g := room.Game
+			idx := int(player.RoomPosition)
+			p := g.State.GetPlayer(int32(idx))
+			handCards := p.GetHandCards()
+			playableIndices := make([]int, 0)
+			for i, c := range handCards {
+				if c.Playable() {
+					playableIndices = append(playableIndices, i)
+				}
+			}
+			rs := g.State.GetRoundState()
+			cardInfos := make([]gameserver.CardInfo, len(rs.Moves))
+			for i, c := range rs.Moves {
+				cardInfos[i] = gameserver.CardInfo{
+					Suit: int32(c.GetSuit()), Rank: int32(c.GetRank()),
+				}
+			}
+			s.Player.NoticeCh <- gameserver.Message{
+				MsgType: gameserver.MSG_TYPE_YOUR_TURN,
+				MsgBody: &gameserver.YourTurnBody{
+					PlayableIndices: playableIndices,
+					RoundSeq:        rs.Seq,
+					RoundMoves:      cardInfos,
+				},
+			}
+		}
+	}
 
+	<-s.ClosedCh
 }
 
-// 创建游戏房间
 func CreateRoom(ctx *gin.Context) {
 	var gameConfig sm.GameConfig
-	err := ctx.BindJSON(&gameConfig)
+	if err := ctx.BindJSON(&gameConfig); err != nil {
+		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, err.Error()))
+		return
+	}
 	if gameConfig.NumPlayers != 3 && gameConfig.NumPlayers != 4 {
 		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, "Invalid number of players"))
 		return
@@ -88,8 +120,13 @@ func CreateRoom(ctx *gin.Context) {
 		return
 	}
 
-	var room = gameserver.NewRoom(u.String(), &gameConfig)
-	ctx.JSON(200, NewSuccessRes(room.ID))
+	host := gameserver.NewPlayer()
+	room := gameserver.NewRoom(u.String(), host, &gameConfig)
+
+	ctx.JSON(200, NewSuccessRes(&JoinRoomRet{
+		RoomID:   room.ID,
+		PlayerID: host.ID,
+	}))
 }
 
 type JoinRoomRet struct {
@@ -98,26 +135,30 @@ type JoinRoomRet struct {
 }
 
 func JoinRoom(ctx *gin.Context) {
-	var roomID = ctx.Query("roomID")
+	roomID := ctx.Query("roomID")
 	if len(roomID) == 0 {
 		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, "Invalid roomID"))
 		return
 	}
-	var player = gameserver.NewPlayer()
+
 	room, err := gameserver.GetRoomByID(roomID)
 	if err != nil {
 		if err == gameserver.ErrRoomNotFound {
-			ctx.JSON(200, NewErrorRes(COMMON_ERR_CODE, fmt.Sprintf("room %s 未找到", roomID)))
+			ctx.JSON(200, NewErrorRes(COMMON_ERR_CODE, "room not found"))
 		} else {
 			ctx.JSON(200, NewErrorRes(COMMON_ERR_CODE, err.Error()))
 		}
 		return
 	}
 
-	room.AddPlayer(player)
+	player := gameserver.NewPlayer()
+	if err := room.AddPlayer(player); err != nil {
+		ctx.JSON(200, NewErrorRes(COMMON_ERR_CODE, err.Error()))
+		return
+	}
+
 	ctx.JSON(200, NewSuccessRes(&JoinRoomRet{
 		RoomID:   player.RoomID,
 		PlayerID: player.ID,
 	}))
-
 }
