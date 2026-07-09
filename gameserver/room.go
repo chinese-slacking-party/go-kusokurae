@@ -17,6 +17,8 @@ var ErrNotHost = errors.New("only host can start game")
 
 type Room struct {
 	ID             string
+	Ctx            context.Context
+	cancel         context.CancelFunc
 	Mutex          sync.Mutex
 	GameConfig     *sm.GameConfig
 	Game           *Game
@@ -33,6 +35,8 @@ func InitRoomRepository() {
 }
 
 func GetRoomByID(roomID string) (*Room, error) {
+	roomRepositoryMu.Lock()
+	defer roomRepositoryMu.Unlock()
 	room, exists := roomRepository[roomID]
 	if !exists {
 		return nil, ErrRoomNotFound
@@ -43,8 +47,11 @@ func GetRoomByID(roomID string) (*Room, error) {
 func NewRoom(id string, host *Player, config *sm.GameConfig) *Room {
 	roomRepositoryMu.Lock()
 	defer roomRepositoryMu.Unlock()
+	ctx, cancel := context.WithCancel(context.Background())
 	r := &Room{
 		ID:             id,
+		Ctx:            ctx,
+		cancel:         cancel,
 		GameConfig:     config,
 		HostPlayerIdx:  0,
 		CurrentPlayers: 1,
@@ -66,6 +73,19 @@ func (r *Room) AddPlayer(player *Player) error {
 	r.Players[position] = player
 	r.CurrentPlayers++
 	player.Sit(r.ID, position)
+
+	// Start per-player consumer for OperatorCh messages (e.g., START_GAME)
+	go func(player *Player) {
+		for {
+			select {
+			case msg := <-player.OperatorCh:
+				r.handleRoomMessage(player, msg)
+			case <-r.Ctx.Done():
+				return
+			}
+		}
+	}(player)
+
 	r.Broadcast(Message{
 		MsgType: MSG_TYPE_PLAYER_JOINED,
 		MsgBody: &PlayerJoinedBody{PlayerID: player.ID, Position: position},
@@ -131,21 +151,7 @@ func (r *Room) StartGame(requesterID string) error {
 }
 
 func (r *Room) RoomFn(ctx context.Context) {
-	for _, p := range r.Players {
-		if p == nil {
-			continue
-		}
-		go func(player *Player) {
-			for {
-				select {
-				case msg := <-player.OperatorCh:
-					r.handleRoomMessage(player, msg)
-				case <-ctx.Done():
-					return
-				}
-			}
-		}(p)
-	}
+	// Deprecated: per-player consumer goroutines are now started in AddPlayer
 	<-ctx.Done()
 }
 
@@ -153,9 +159,12 @@ func (r *Room) handleRoomMessage(player *Player, msg Message) {
 	switch msg.MsgType {
 	case MSG_TYPE_START_GAME:
 		if err := r.StartGame(player.ID); err != nil {
-			player.NoticeCh <- Message{
+			select {
+			case player.NoticeCh <- Message{
 				MsgType: MSG_TYPE_ERROR,
 				MsgBody: &ErrorBody{Message: err.Error()},
+			}:
+			default:
 			}
 		}
 	}

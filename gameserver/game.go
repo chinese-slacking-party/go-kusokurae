@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"math/rand"
+	"sync"
 
 	"github.com/bs-iron-trio/go-kusokurae/sm"
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ const MaxPlayers = 4
 
 type Game struct {
 	ID              string
+	StateMutex      sync.Mutex
 	Config          *sm.GameConfig
 	State           *sm.GameState
 	Players         []*Player
@@ -152,6 +154,8 @@ func (g *Game) waitForMove(ctx context.Context, activeIdx int) {
 }
 
 func (g *Game) handleMove(idx int, msg Message) {
+	g.StateMutex.Lock()
+	defer g.StateMutex.Unlock()
 	if !g.isActivePlayer(int32(idx)) {
 		g.sendTo(idx, Message{
 			MsgType: MSG_TYPE_ERROR,
@@ -229,6 +233,8 @@ func (g *Game) handleMove(idx int, msg Message) {
 }
 
 func (g *Game) autoPlay(idx int) {
+	g.StateMutex.Lock()
+	defer g.StateMutex.Unlock()
 	p := g.State.GetPlayer(int32(idx))
 	if p == nil {
 		return

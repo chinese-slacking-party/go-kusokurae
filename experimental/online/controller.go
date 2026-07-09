@@ -68,35 +68,44 @@ func handleWebSocket(c *gin.Context) {
 	go s.Output(c.Request.Context())
 
 	// If game is in progress, re-sync state to the reconnected player
-	if room.Game != nil && room.Game.State != nil && room.Game.State.GetStatus() == sm.StatusPlay {
-		activePlayer := room.Game.State.GetActivePlayer()
-		if activePlayer != nil && activePlayer.GetIndex()-1 == int(player.RoomPosition) {
-			// Reconnected player is the active player — re-send YOUR_TURN
-			g := room.Game
-			idx := int(player.RoomPosition)
-			p := g.State.GetPlayer(int32(idx))
-			handCards := p.GetHandCards()
-			playableIndices := make([]int, 0)
-			for i, c := range handCards {
-				if c.Playable() {
-					playableIndices = append(playableIndices, i)
+	if room.Game != nil && room.Game.State != nil {
+		room.Game.StateMutex.Lock()
+		g := room.Game
+		state := g.State
+		status := state.GetStatus()
+		var reSyncMsg *gameserver.Message
+		if status == sm.StatusPlay {
+			activePlayer := state.GetActivePlayer()
+			if activePlayer != nil && activePlayer.GetIndex()-1 == int(player.RoomPosition) {
+				idx := int(player.RoomPosition)
+				p := state.GetPlayer(int32(idx))
+				handCards := p.GetHandCards()
+				playableIndices := make([]int, 0)
+				for i, c := range handCards {
+					if c.Playable() {
+						playableIndices = append(playableIndices, i)
+					}
+				}
+				rs := state.GetRoundState()
+				cardInfos := make([]gameserver.CardInfo, len(rs.Moves))
+				for i, c := range rs.Moves {
+					cardInfos[i] = gameserver.CardInfo{
+						Suit: int32(c.GetSuit()), Rank: int32(c.GetRank()),
+					}
+				}
+				reSyncMsg = &gameserver.Message{
+					MsgType: gameserver.MSG_TYPE_YOUR_TURN,
+					MsgBody: &gameserver.YourTurnBody{
+						PlayableIndices: playableIndices,
+						RoundSeq:        rs.Seq,
+						RoundMoves:      cardInfos,
+					},
 				}
 			}
-			rs := g.State.GetRoundState()
-			cardInfos := make([]gameserver.CardInfo, len(rs.Moves))
-			for i, c := range rs.Moves {
-				cardInfos[i] = gameserver.CardInfo{
-					Suit: int32(c.GetSuit()), Rank: int32(c.GetRank()),
-				}
-			}
-			s.Player.NoticeCh <- gameserver.Message{
-				MsgType: gameserver.MSG_TYPE_YOUR_TURN,
-				MsgBody: &gameserver.YourTurnBody{
-					PlayableIndices: playableIndices,
-					RoundSeq:        rs.Seq,
-					RoundMoves:      cardInfos,
-				},
-			}
+		}
+		room.Game.StateMutex.Unlock()
+		if reSyncMsg != nil {
+			s.Player.NoticeCh <- *reSyncMsg
 		}
 	}
 
