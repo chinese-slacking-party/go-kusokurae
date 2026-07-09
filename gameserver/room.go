@@ -32,7 +32,7 @@ func InitRoomRepository() {
 func GetRoomByID(roomID string) (*Room, error) {
 	room, exists := roomRepository[roomID]
 	if !exists {
-		return nil, ErrRoomFull
+		return nil, ErrRoomNotFound
 	} else {
 		return room, nil
 	}

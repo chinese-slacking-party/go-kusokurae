@@ -11,7 +11,7 @@ import (
 type Player struct {
 	ID            string
 	RoomID        string
-	RoomPosistion int32
+	RoomPosition int32
 	NoticeCh      chan Message
 	OperatorCh    chan Message
 	sync.Mutex
@@ -26,7 +26,7 @@ func NewPlayer() *Player {
 	return &Player{
 		ID:            u.String(),
 		RoomID:        "",
-		RoomPosistion: -1,
+		RoomPosition: -1,
 		NoticeCh:      make(chan Message),
 		OperatorCh:    make(chan Message),
 		joystick:      nil,
@@ -35,7 +35,7 @@ func NewPlayer() *Player {
 
 func (p *Player) Sit(roomID string, roomPosition int32) {
 	p.RoomID = roomID
-	p.RoomPosistion = roomPosition
+	p.RoomPosition = roomPosition
 }
 
 func (p *Player) getJoystick() Joystick {

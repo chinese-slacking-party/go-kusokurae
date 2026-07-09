@@ -41,7 +41,7 @@ func (g *Game) GameFn(ctx context.Context) {
 		var errMsg = Message{
 			MsgType: MSG_TYPE_FATAL,
 			MsgBody: &SMSMesssageBody{
-				Data: fmt.Sprint("error %w", p),
+				Data: fmt.Sprintf("error %v", p),
 			},
 		}
 		for i := 0; i < int(g.Config.NumPlayers); i++ {

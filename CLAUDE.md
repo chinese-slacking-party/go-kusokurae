@@ -26,10 +26,4 @@ Three layers, bottom-up:
 - `experimental/selfplay/` — CLI where one human plays every seat, driven by `sm.GameState.Play()`
 - `experimental/sm/` — Prints `unsafe.Sizeof` for the cgo structs (memory layout verification)
 
-## Known quirks
 
-- `gameserver/room.go:35`: `GetRoomByID` returns `ErrRoomFull` when room not found — should be `ErrRoomNotFound` (defined but unused).
-- `gameserver/game.go:43`: `fmt.Sprint("error %v", p)` uses `Sprint` with format args — should be `Sprintf`.
-- `gameserver/gateway.go:12`: `ColsedCh` is misspelled (also at `controller.go:72`).
-- `gameserver/player.go:9`: `RoomPosistion` is misspelled.
-- `gameserver/game.go`: `GameFn` is a stub — the online game loop is not wired up.

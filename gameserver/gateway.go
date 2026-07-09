@@ -10,7 +10,7 @@ import (
 type Session struct {
 	Conn               *websocket.Conn
 	Player             *Player
-	ColsedCh           chan struct{}
+	ClosedCh           chan struct{}
 	inputStreamClosed  chan struct{}
 	outputStreamClosed chan struct{}
 }
@@ -19,7 +19,7 @@ func NewSession(conn *websocket.Conn, player *Player) (s *Session) {
 	return &Session{
 		Conn:               conn,
 		Player:             player,
-		ColsedCh:           make(chan struct{}),
+		ClosedCh:           make(chan struct{}),
 		inputStreamClosed:  make(chan struct{}),
 		outputStreamClosed: make(chan struct{}),
 	}
@@ -75,6 +75,6 @@ func (s *Session) Output(ctx context.Context) {
 func (s *Session) SessionControl(ctx context.Context) {
 	<-s.inputStreamClosed
 	<-s.outputStreamClosed
-	s.ColsedCh <- struct{}{}
-	close(s.ColsedCh)
+	s.ClosedCh <- struct{}{}
+	close(s.ClosedCh)
 }

@@ -69,7 +69,7 @@ func handleWebSocket(c *gin.Context) {
 	go s.Input(c.Request.Context())
 	go s.Output(c.Request.Context())
 
-	<-s.ColsedCh
+	<-s.ClosedCh
 
 }
 
