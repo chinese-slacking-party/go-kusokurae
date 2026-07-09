@@ -64,6 +64,9 @@ func (g *Game) sendTo(idx int, msg Message) {
 }
 
 func (g *Game) GameFn(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	var err error
 	g.State, err = sm.NewGame(*g.Config, nil)
 	if err != nil {
@@ -257,6 +260,20 @@ func (g *Game) autoPlay(idx int) {
 		MsgType: MSG_TYPE_MOVE_MADE,
 		MsgBody: &MoveMadeBody{PlayerIdx: int32(idx), Card: playedInfo, RoundMoves: moveInfos},
 	})
+
+	// Check round end
+	if g.State.GetActivePlayer().GetRoundStatus() == sm.RoundActive {
+		rs := g.State.GetRoundState()
+		if rs.RoundWinner != nil {
+			g.broadcast(Message{
+				MsgType: MSG_TYPE_ROUND_END,
+				MsgBody: &RoundEndBody{
+					WinnerIdx: int32(rs.RoundWinner.GetIndex() - 1),
+					Score:     int32(rs.ScoreOnBoard),
+				},
+			})
+		}
+	}
 }
 
 func (g *Game) broadcastGameOver() {
