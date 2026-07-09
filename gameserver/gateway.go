@@ -2,7 +2,6 @@ package gameserver
 
 import (
 	"context"
-	"log"
 
 	"github.com/gorilla/websocket"
 )
@@ -15,61 +14,53 @@ type Session struct {
 	outputStreamClosed chan struct{}
 }
 
-func NewSession(conn *websocket.Conn, player *Player) (s *Session) {
-	return &Session{
+func NewSession(conn *websocket.Conn, player *Player) *Session {
+	s := &Session{
 		Conn:               conn,
 		Player:             player,
 		ClosedCh:           make(chan struct{}),
 		inputStreamClosed:  make(chan struct{}),
 		outputStreamClosed: make(chan struct{}),
 	}
+	player.Session = s
+	return s
 }
 
 func (s *Session) Input(ctx context.Context) {
-
 	defer func() {
 		s.inputStreamClosed <- struct{}{}
 		close(s.inputStreamClosed)
 	}()
 
-	defer func() {
-		if p := recover(); p != nil {
-			log.Printf("Session input error: %s", p)
-		}
-	}()
-
 	var msg Message
 	for {
 		if err := s.Conn.ReadJSON(&msg); err != nil {
-			log.Panicf("读取消息失败: %s", err)
+			close(s.Player.Disconnected)
+			s.Player.Session = nil
 			return
 		}
 		s.Player.OperatorCh <- msg
 	}
-
 }
 
 func (s *Session) Output(ctx context.Context) {
-
 	defer func() {
 		s.outputStreamClosed <- struct{}{}
 		close(s.outputStreamClosed)
 	}()
 
-	defer func() {
-		if p := recover(); p != nil {
-			log.Printf("Session input error: %s", p)
-		}
-	}()
-
 	for {
-		msg := <-s.Player.NoticeCh
-		if err := s.Conn.WriteJSON(&msg); err != nil {
-			log.Panicf("写入消息失败: %s", err)
+		select {
+		case msg := <-s.Player.NoticeCh:
+			if err := s.Conn.WriteJSON(&msg); err != nil {
+				close(s.Player.Disconnected)
+				s.Player.Session = nil
+				return
+			}
+		case <-ctx.Done():
 			return
 		}
 	}
-
 }
 
 func (s *Session) SessionControl(ctx context.Context) {
