@@ -126,7 +126,7 @@ var errMap = map[C.kusokurae_error_t]error{
 
 // GameConfig has the same memory layout with C.kusokurae_game_config_t.
 type GameConfig struct {
-	NumPlayers int32
+	NumPlayers int32 `json:"numPlayers"`
 }
 
 // GameCallbacks has the same memory layout with C.kusokurae_game_callbacks_t.
