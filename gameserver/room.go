@@ -60,6 +60,19 @@ func NewRoom(id string, host *Player, config *sm.GameConfig) *Room {
 	r.Players[0] = host
 	host.Sit(id, 0)
 	roomRepository[id] = r
+
+	// Start consumer goroutine for host's OperatorCh
+	go func(player *Player) {
+		for {
+			select {
+			case msg := <-player.OperatorCh:
+				r.handleRoomMessage(player, msg)
+			case <-r.Ctx.Done():
+				return
+			}
+		}
+	}(host)
+
 	return r
 }
 
