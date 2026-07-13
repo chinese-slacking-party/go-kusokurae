@@ -180,11 +180,11 @@ func (g *Game) handleMove(idx int, msg Message) {
 		})
 		return
 	}
-	cardIdxFloat, ok := body["cardIndex"].(float64)
+	cardIdxFloat, ok := body["card_index"].(float64)
 	if !ok {
 		g.sendTo(idx, Message{
 			MsgType: MSG_TYPE_ERROR,
-			MsgBody: &ErrorBody{Message: "cardIndex must be a number"},
+			MsgBody: &ErrorBody{Message: "card_index must be a number"},
 		})
 		return
 	}

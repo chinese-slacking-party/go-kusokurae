@@ -32,7 +32,7 @@ type SMSMesssageBody struct {
 
 // Client → Server body types
 type PlayCardBody struct {
-	CardIndex int `json:"cardIndex"`
+	CardIndex int `json:"card_index"`
 }
 
 // Server → Client body types
@@ -44,54 +44,54 @@ type CardInfo struct {
 
 type RoomStateBody struct {
 	Players []RoomPlayerInfo `json:"players"`
-	HostIdx int32            `json:"hostIdx"`
+	HostIdx int32            `json:"host_idx"`
 }
 
 type RoomPlayerInfo struct {
-	PlayerID string `json:"playerID"`
+	PlayerID string `json:"player_id"`
 	Position int32  `json:"position"`
-	IsHost   bool   `json:"isHost"`
+	IsHost   bool   `json:"is_host"`
 }
 
 type GameStartBody struct {
-	HandCards      []CardInfo `json:"handCards"`
-	FirstPlayerIdx int32      `json:"firstPlayerIdx"`
+	HandCards      []CardInfo `json:"hand_cards"`
+	FirstPlayerIdx int32      `json:"first_player_idx"`
 }
 
 type YourTurnBody struct {
-	PlayableIndices []int      `json:"playableIndices"`
-	RoundSeq        int        `json:"roundSeq"`
-	RoundMoves      []CardInfo `json:"roundMoves"`
+	PlayableIndices []int      `json:"playable_indices"`
+	RoundSeq        int        `json:"round_seq"`
+	RoundMoves      []CardInfo `json:"round_moves"`
 }
 
 type MoveMadeBody struct {
-	PlayerIdx  int32      `json:"playerIdx"`
+	PlayerIdx  int32      `json:"player_idx"`
 	Card       CardInfo   `json:"card"`
-	RoundMoves []CardInfo `json:"roundMoves"`
+	RoundMoves []CardInfo `json:"round_moves"`
 }
 
 type RoundEndBody struct {
-	WinnerIdx int32 `json:"winnerIdx"`
+	WinnerIdx int32 `json:"winner_idx"`
 	Score     int32 `json:"score"`
 }
 
 type GameOverBody struct {
-	FinalScores []PlayerScore `json:"finalScores"`
-	WinnerIdx   int32         `json:"winnerIdx"`
+	FinalScores []PlayerScore `json:"final_scores"`
+	WinnerIdx   int32         `json:"winner_idx"`
 }
 
 type PlayerScore struct {
-	PlayerIdx int32 `json:"playerIdx"`
+	PlayerIdx int32 `json:"player_idx"`
 	Score     int32 `json:"score"`
 }
 
 type PlayerJoinedBody struct {
-	PlayerID string `json:"playerID"`
+	PlayerID string `json:"player_id"`
 	Position int32  `json:"position"`
 }
 
 type PlayerLeftBody struct {
-	PlayerID string `json:"playerID"`
+	PlayerID string `json:"player_id"`
 	Position int32  `json:"position"`
 }
 

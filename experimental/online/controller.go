@@ -139,14 +139,14 @@ func CreateRoom(ctx *gin.Context) {
 }
 
 type JoinRoomRet struct {
-	RoomID   string `json:"roomID"`
-	PlayerID string `json:"playerID"`
+	RoomID   string `json:"room_id"`
+	PlayerID string `json:"player_id"`
 }
 
 func JoinRoom(ctx *gin.Context) {
-	roomID := ctx.Query("roomID")
+	roomID := ctx.Query("room_id")
 	if len(roomID) == 0 {
-		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, "Invalid roomID"))
+		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, "Invalid room_id"))
 		return
 	}
 
