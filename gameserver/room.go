@@ -202,3 +202,89 @@ func (r *Room) handleRoomMessage(player *Player, msg Message) {
 		}
 	}
 }
+
+func (r *Room) gameEventLoop(g *Game, players []*Player) {
+	var currentTurnIdx int = -1
+	var playableIndices []int
+
+	for {
+		select {
+		case event := <-g.EventCh:
+			switch event.Msg.MsgType {
+			case MSG_TYPE_YOUR_TURN:
+				idx := event.Target
+				body := event.Msg.MsgBody.(*YourTurnBody)
+				if !r.isPlayerConnected(players[idx]) {
+					r.autoPlayCard(g, idx, body.PlayableIndices)
+				} else {
+					r.sendToPlayer(players[idx], event.Msg)
+					currentTurnIdx = idx
+					playableIndices = body.PlayableIndices
+				}
+
+			default:
+				if event.Target == -1 {
+					r.broadcastToPlayers(players, event.Msg)
+				} else {
+					r.sendToPlayer(players[event.Target], event.Msg)
+				}
+			}
+
+		case <-r.gameDisconnected(players, currentTurnIdx):
+			if currentTurnIdx >= 0 && len(playableIndices) > 0 {
+				r.autoPlayCard(g, currentTurnIdx, playableIndices)
+				currentTurnIdx = -1
+				playableIndices = nil
+			}
+
+		case <-g.GameOver:
+			return
+		case <-r.Ctx.Done():
+			return
+		}
+	}
+}
+
+func (r *Room) sendToPlayer(p *Player, msg Message) {
+	if p == nil || p.Session == nil {
+		return
+	}
+	select {
+	case p.NoticeCh <- msg:
+	default:
+	}
+}
+
+func (r *Room) broadcastToPlayers(players []*Player, msg Message) {
+	for _, p := range players {
+		r.sendToPlayer(p, msg)
+	}
+}
+
+func (r *Room) isPlayerConnected(p *Player) bool {
+	return p != nil && p.Session != nil
+}
+
+func (r *Room) gameDisconnected(players []*Player, idx int) chan struct{} {
+	if idx < 0 || idx >= len(players) || players[idx] == nil {
+		return nil
+	}
+	return players[idx].Disconnected
+}
+
+func (r *Room) autoPlayCard(g *Game, idx int, playableIndices []int) {
+	if len(playableIndices) == 0 {
+		return
+	}
+	chosen := playableIndices[rand.Intn(len(playableIndices))]
+	select {
+	case g.CmdCh <- GameCommand{
+		PlayerIdx: idx,
+		Msg: Message{
+			MsgType: MSG_TYPE_PLAY_CARD,
+			MsgBody: &PlayCardBody{CardIndex: chosen},
+		},
+	}:
+	case <-g.GameOver:
+	}
+}
