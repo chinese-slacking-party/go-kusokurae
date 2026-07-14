@@ -12,13 +12,19 @@ import (
 
 const MaxPlayers = 4
 
+type GameCommand struct {
+	PlayerIdx int
+	Msg       Message
+}
+
 type Game struct {
-	ID              string
-	StateMutex      sync.Mutex
-	Config          *sm.GameConfig
-	State           *sm.GameState
-	Players         []*Player
-	PlayerReaderChs []chan Message
+	ID         string
+	StateMutex sync.Mutex
+	Config     *sm.GameConfig
+	State      *sm.GameState
+	Players    []*Player
+	CmdCh      chan GameCommand
+	GameOver   chan struct{}
 }
 
 func NewGame(config *sm.GameConfig, players []*Player) *Game {
@@ -28,16 +34,13 @@ func NewGame(config *sm.GameConfig, players []*Player) *Game {
 	}
 	n := int(config.NumPlayers)
 	g := &Game{
-		ID:              u.String(),
-		Config:          config,
-		State:           nil,
-		Players:         players[:n],
-		PlayerReaderChs: make([]chan Message, MaxPlayers),
+		ID:       u.String(),
+		Config:   config,
+		State:    nil,
+		Players:  players[:n],
+		CmdCh:    make(chan GameCommand, 1),
+		GameOver: make(chan struct{}),
 	}
-	for i := 0; i < n; i++ {
-		g.PlayerReaderChs[i] = make(chan Message, 1)
-	}
-	// Slots n..3 remain nil → dead cases in select
 	return g
 }
 
@@ -68,6 +71,7 @@ func (g *Game) sendTo(idx int, msg Message) {
 func (g *Game) GameFn(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	defer close(g.GameOver)
 
 	var err error
 	g.State, err = sm.NewGame(*g.Config, nil)
@@ -79,20 +83,6 @@ func (g *Game) GameFn(ctx context.Context) {
 	if err = g.State.Start(); err != nil {
 		log.Printf("GameFn: failed to start game: %v", err)
 		return
-	}
-
-	// Start relay goroutines for each player
-	for i, p := range g.Players {
-		go func(idx int, player *Player) {
-			for {
-				select {
-				case msg := <-player.OperatorCh:
-					g.PlayerReaderChs[idx] <- msg
-				case <-ctx.Done():
-					return
-				}
-			}
-		}(i, p)
 	}
 
 	// Broadcast GAME_START
@@ -113,23 +103,17 @@ func (g *Game) GameFn(ctx context.Context) {
 
 		g.sendYOUR_TURN(activeIdx)
 
-		g.waitForMove(ctx, activeIdx)
+		g.waitForMove(ctx)
 	}
 
 	// Game over — broadcast final scores
 	g.broadcastGameOver()
 }
 
-func (g *Game) waitForMove(ctx context.Context, activeIdx int) {
+func (g *Game) waitForMove(ctx context.Context) {
 	select {
-	case msg := <-g.PlayerReaderChs[0]:
-		g.handleMove(0, msg)
-	case msg := <-g.PlayerReaderChs[1]:
-		g.handleMove(1, msg)
-	case msg := <-g.PlayerReaderChs[2]:
-		g.handleMove(2, msg)
-	case msg := <-g.PlayerReaderChs[3]:
-		g.handleMove(3, msg)
+	case cmd := <-g.CmdCh:
+		g.handleMove(cmd.PlayerIdx, cmd.Msg)
 
 	case <-g.disconnectedCh(0):
 		if g.isActivePlayer(0) {

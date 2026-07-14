@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/bs-iron-trio/go-kusokurae/sm"
 )
@@ -21,7 +22,7 @@ type Room struct {
 	cancel         context.CancelFunc
 	Mutex          sync.Mutex
 	GameConfig     *sm.GameConfig
-	Game           *Game
+	game           atomic.Pointer[Game]
 	HostPlayerIdx  int32
 	CurrentPlayers int32
 	Players        []*Player
@@ -75,6 +76,8 @@ func NewRoom(id string, host *Player, config *sm.GameConfig) *Room {
 
 	return r
 }
+
+func (r *Room) Game() *Game { return r.game.Load() }
 
 func (r *Room) AddPlayer(player *Player) error {
 	r.Mutex.Lock()
@@ -146,7 +149,7 @@ func (r *Room) StartGame(requesterID string) error {
 	r.Mutex.Lock()
 	defer r.Mutex.Unlock()
 
-	if r.Game != nil {
+	if r.game.Load() != nil {
 		return ErrGameAlreadyStarted
 	}
 	if r.CurrentPlayers < r.GameConfig.NumPlayers {
@@ -158,8 +161,9 @@ func (r *Room) StartGame(requesterID string) error {
 
 	players := make([]*Player, r.GameConfig.NumPlayers)
 	copy(players, r.Players[:r.GameConfig.NumPlayers])
-	r.Game = NewGame(r.GameConfig, players)
-	go r.Game.GameFn(context.Background())
+	g := NewGame(r.GameConfig, players)
+	r.game.Store(g)
+	go g.GameFn(context.Background())
 	return nil
 }
 
@@ -178,6 +182,18 @@ func (r *Room) handleRoomMessage(player *Player, msg Message) {
 				MsgBody: &ErrorBody{Message: err.Error()},
 			}:
 			default:
+			}
+		}
+
+	case MSG_TYPE_PLAY_CARD:
+		if g := r.game.Load(); g != nil {
+			select {
+			case g.CmdCh <- GameCommand{
+				PlayerIdx: int(player.RoomPosition),
+				Msg:       msg,
+			}:
+			case <-g.GameOver:
+			case <-r.Ctx.Done():
 			}
 		}
 	}

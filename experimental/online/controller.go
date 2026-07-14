@@ -68,9 +68,8 @@ func handleWebSocket(c *gin.Context) {
 	go s.Output(c.Request.Context())
 
 	// If game is in progress, re-sync state to the reconnected player
-	if room.Game != nil && room.Game.State != nil {
-		room.Game.StateMutex.Lock()
-		g := room.Game
+	if g := room.Game(); g != nil && g.State != nil {
+		g.StateMutex.Lock()
 		state := g.State
 		status := state.GetStatus()
 		var reSyncMsg *gameserver.Message
@@ -103,7 +102,7 @@ func handleWebSocket(c *gin.Context) {
 				}
 			}
 		}
-		room.Game.StateMutex.Unlock()
+		g.StateMutex.Unlock()
 		if reSyncMsg != nil {
 			s.Player.NoticeCh <- *reSyncMsg
 		}
