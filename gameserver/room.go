@@ -3,6 +3,7 @@ package gameserver
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 
