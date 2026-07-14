@@ -3,7 +3,6 @@ package gameserver
 import (
 	"context"
 	"log"
-	"math/rand"
 	"sync"
 
 	"github.com/bs-iron-trio/go-kusokurae/sm"
@@ -17,54 +16,42 @@ type GameCommand struct {
 	Msg       Message
 }
 
+type GameEvent struct {
+	Target int     // player index, -1 = broadcast
+	Msg    Message
+}
+
 type Game struct {
 	ID         string
 	StateMutex sync.Mutex
 	Config     *sm.GameConfig
 	State      *sm.GameState
-	Players    []*Player
+	NumPlayers int32
 	CmdCh      chan GameCommand
+	EventCh    chan GameEvent
 	GameOver   chan struct{}
 }
 
-func NewGame(config *sm.GameConfig, players []*Player) *Game {
+func NewGame(config *sm.GameConfig, numPlayers int32) *Game {
 	u, err := uuid.NewRandom()
 	if err != nil {
 		panic("failed to generate game ID")
 	}
-	n := int(config.NumPlayers)
 	g := &Game{
-		ID:       u.String(),
-		Config:   config,
-		State:    nil,
-		Players:  players[:n],
-		CmdCh:    make(chan GameCommand, 1),
-		GameOver: make(chan struct{}),
+		ID:         u.String(),
+		Config:     config,
+		NumPlayers: numPlayers,
+		CmdCh:      make(chan GameCommand, 1),
+		EventCh:    make(chan GameEvent, 1),
+		GameOver:   make(chan struct{}),
 	}
 	return g
 }
 
-func (g *Game) broadcast(msg Message) {
-	for _, p := range g.Players {
-		if p != nil && p.Session != nil {
-			select {
-			case p.NoticeCh <- msg:
-			default:
-			}
-		}
-	}
-}
-
-func (g *Game) sendTo(idx int, msg Message) {
-	if idx < 0 || idx >= len(g.Players) {
-		return
-	}
-	p := g.Players[idx]
-	if p != nil && p.Session != nil {
-		select {
-		case p.NoticeCh <- msg:
-		default:
-		}
+func (g *Game) emit(target int, msg Message) {
+	select {
+	case g.EventCh <- GameEvent{Target: target, Msg: msg}:
+	default:
 	}
 }
 
@@ -85,63 +72,38 @@ func (g *Game) GameFn(ctx context.Context) {
 		return
 	}
 
-	// Broadcast GAME_START
+	// Broadcast GAME_START — per-player events
 	firstPlayer := g.State.GetActivePlayer()
 	firstIdx := int32(firstPlayer.GetIndex() - 1)
-	for i := 0; i < int(g.Config.NumPlayers); i++ {
-		handCards := g.buildCardInfos(g.State.GetPlayer(int32(i)).GetHandCards())
-		g.sendTo(i, Message{
+	for i := int32(0); i < g.NumPlayers; i++ {
+		handCards := g.buildCardInfos(g.State.GetPlayer(i).GetHandCards())
+		g.emit(int(i), Message{
 			MsgType: MSG_TYPE_GAME_START,
 			MsgBody: &GameStartBody{HandCards: handCards, FirstPlayerIdx: firstIdx},
 		})
 	}
 
-	// Main game loop
+	// Main game loop — no disconnect/autoPlay cases
 	for g.State.GetStatus() == sm.StatusPlay {
-		activePlayer := g.State.GetActivePlayer()
-		activeIdx := activePlayer.GetIndex() - 1
+		activeIdx := int(g.State.GetActivePlayer().GetIndex() - 1)
+		g.emitYOUR_TURN(activeIdx)
 
-		g.sendYOUR_TURN(activeIdx)
-
-		g.waitForMove(ctx)
+		select {
+		case cmd := <-g.CmdCh:
+			g.handleMove(cmd.PlayerIdx, cmd.Msg)
+		case <-ctx.Done():
+			return
+		}
 	}
 
-	// Game over — broadcast final scores
 	g.broadcastGameOver()
-}
-
-func (g *Game) waitForMove(ctx context.Context) {
-	select {
-	case cmd := <-g.CmdCh:
-		g.handleMove(cmd.PlayerIdx, cmd.Msg)
-
-	case <-g.disconnectedCh(0):
-		if g.isActivePlayer(0) {
-			g.autoPlay(0)
-		}
-	case <-g.disconnectedCh(1):
-		if g.isActivePlayer(1) {
-			g.autoPlay(1)
-		}
-	case <-g.disconnectedCh(2):
-		if g.isActivePlayer(2) {
-			g.autoPlay(2)
-		}
-	case <-g.disconnectedCh(3):
-		if g.isActivePlayer(3) {
-			g.autoPlay(3)
-		}
-
-	case <-ctx.Done():
-		return
-	}
 }
 
 func (g *Game) handleMove(idx int, msg Message) {
 	g.StateMutex.Lock()
 	defer g.StateMutex.Unlock()
 	if !g.isActivePlayer(int32(idx)) {
-		g.sendTo(idx, Message{
+		g.emit(idx, Message{
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: "not your turn"},
 		})
@@ -149,7 +111,7 @@ func (g *Game) handleMove(idx int, msg Message) {
 	}
 
 	if msg.MsgType != MSG_TYPE_PLAY_CARD {
-		g.sendTo(idx, Message{
+		g.emit(idx, Message{
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: "unexpected message type: " + msg.MsgType},
 		})
@@ -158,7 +120,7 @@ func (g *Game) handleMove(idx int, msg Message) {
 
 	body, ok := msg.MsgBody.(map[string]interface{})
 	if !ok {
-		g.sendTo(idx, Message{
+		g.emit(idx, Message{
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: "invalid play card body"},
 		})
@@ -166,7 +128,7 @@ func (g *Game) handleMove(idx int, msg Message) {
 	}
 	cardIdxFloat, ok := body["card_index"].(float64)
 	if !ok {
-		g.sendTo(idx, Message{
+		g.emit(idx, Message{
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: "card_index must be a number"},
 		})
@@ -176,7 +138,7 @@ func (g *Game) handleMove(idx int, msg Message) {
 
 	handCards := g.State.GetActivePlayer().GetHandCards()
 	if cardIdx < 0 || cardIdx >= len(handCards) {
-		g.sendTo(idx, Message{
+		g.emit(idx, Message{
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: "card index out of range"},
 		})
@@ -185,77 +147,25 @@ func (g *Game) handleMove(idx int, msg Message) {
 
 	card := handCards[cardIdx]
 	if err := g.State.Play(card); err != nil {
-		g.sendTo(idx, Message{
+		g.emit(idx, Message{
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: err.Error()},
 		})
 		return
 	}
 
-	// Broadcast move
 	roundState := g.State.GetRoundState()
 	moveInfos := g.buildCardInfos(roundState.Moves)
 	playedInfo := CardInfo{Suit: int32(card.GetSuit()), Rank: int32(card.GetRank()), Playable: false}
-	g.broadcast(Message{
+	g.emit(-1, Message{
 		MsgType: MSG_TYPE_MOVE_MADE,
 		MsgBody: &MoveMadeBody{PlayerIdx: int32(idx), Card: playedInfo, RoundMoves: moveInfos},
 	})
 
-	// Check round end
 	if g.State.GetActivePlayer().GetRoundStatus() == sm.RoundActive {
 		rs := g.State.GetRoundState()
 		if rs.RoundWinner != nil {
-			g.broadcast(Message{
-				MsgType: MSG_TYPE_ROUND_END,
-				MsgBody: &RoundEndBody{
-					WinnerIdx: int32(rs.RoundWinner.GetIndex() - 1),
-					Score:     int32(rs.ScoreOnBoard),
-				},
-			})
-		}
-	}
-}
-
-func (g *Game) autoPlay(idx int) {
-	g.StateMutex.Lock()
-	defer g.StateMutex.Unlock()
-	p := g.State.GetPlayer(int32(idx))
-	if p == nil {
-		return
-	}
-	handCards := p.GetHandCards()
-
-	// Find playable cards
-	var playable []int
-	for i, c := range handCards {
-		if c.Playable() {
-			playable = append(playable, i)
-		}
-	}
-	if len(playable) == 0 {
-		playable = append(playable, 0) // fallback: play first card (busted)
-	}
-
-	chosen := playable[rand.Intn(len(playable))]
-	card := handCards[chosen]
-	if err := g.State.Play(card); err != nil {
-		log.Printf("autoPlay: play error for player %d: %v", idx, err)
-		return
-	}
-
-	roundState := g.State.GetRoundState()
-	moveInfos := g.buildCardInfos(roundState.Moves)
-	playedInfo := CardInfo{Suit: int32(card.GetSuit()), Rank: int32(card.GetRank()), Playable: false}
-	g.broadcast(Message{
-		MsgType: MSG_TYPE_MOVE_MADE,
-		MsgBody: &MoveMadeBody{PlayerIdx: int32(idx), Card: playedInfo, RoundMoves: moveInfos},
-	})
-
-	// Check round end
-	if g.State.GetActivePlayer().GetRoundStatus() == sm.RoundActive {
-		rs := g.State.GetRoundState()
-		if rs.RoundWinner != nil {
-			g.broadcast(Message{
+			g.emit(-1, Message{
 				MsgType: MSG_TYPE_ROUND_END,
 				MsgBody: &RoundEndBody{
 					WinnerIdx: int32(rs.RoundWinner.GetIndex() - 1),
@@ -267,10 +177,10 @@ func (g *Game) autoPlay(idx int) {
 }
 
 func (g *Game) broadcastGameOver() {
-	scores := make([]PlayerScore, g.Config.NumPlayers)
+	scores := make([]PlayerScore, g.NumPlayers)
 	var winnerIdx int32
 	var highScore int32
-	for i := int32(0); i < g.Config.NumPlayers; i++ {
+	for i := int32(0); i < g.NumPlayers; i++ {
 		s := g.State.GetPlayer(i).GetScore()
 		scores[i] = PlayerScore{PlayerIdx: i, Score: int32(s)}
 		if int32(s) > highScore {
@@ -278,7 +188,7 @@ func (g *Game) broadcastGameOver() {
 			winnerIdx = i
 		}
 	}
-	g.broadcast(Message{
+	g.emit(-1, Message{
 		MsgType: MSG_TYPE_GAME_OVER,
 		MsgBody: &GameOverBody{FinalScores: scores, WinnerIdx: winnerIdx},
 	})
@@ -292,14 +202,7 @@ func (g *Game) isActivePlayer(idx int32) bool {
 	return ap.GetIndex()-1 == int(idx)
 }
 
-func (g *Game) disconnectedCh(idx int) chan struct{} {
-	if idx >= len(g.Players) || g.Players[idx] == nil {
-		return nil
-	}
-	return g.Players[idx].Disconnected
-}
-
-func (g *Game) sendYOUR_TURN(idx int) {
+func (g *Game) emitYOUR_TURN(idx int) {
 	p := g.State.GetPlayer(int32(idx))
 	handCards := p.GetHandCards()
 	playableIndices := make([]int, 0)
@@ -309,7 +212,7 @@ func (g *Game) sendYOUR_TURN(idx int) {
 		}
 	}
 	rs := g.State.GetRoundState()
-	g.sendTo(idx, Message{
+	g.emit(idx, Message{
 		MsgType: MSG_TYPE_YOUR_TURN,
 		MsgBody: &YourTurnBody{
 			PlayableIndices: playableIndices,
