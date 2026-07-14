@@ -160,9 +160,14 @@ func (r *Room) StartGame(requesterID string) error {
 		return ErrNotHost
 	}
 
-	g := NewGame(r.GameConfig, r.GameConfig.NumPlayers)
+	players := make([]*Player, r.GameConfig.NumPlayers)
+	copy(players, r.Players[:r.GameConfig.NumPlayers])
+	g := NewGame(r.GameConfig, int32(len(players)))
 	r.game.Store(g)
+
 	go g.GameFn(context.Background())
+	go r.gameEventLoop(g, players)
+
 	return nil
 }
 
