@@ -9,9 +9,8 @@ import (
 
 func TestCmdCh_RoutesMessage(t *testing.T) {
 	g := &Game{
-		ID:      "test",
-		Players: []*Player{{ID: "p1"}, {ID: "p2"}, {ID: "p3"}},
-		CmdCh:   make(chan GameCommand, 1),
+		ID:    "test",
+		CmdCh: make(chan GameCommand, 1),
 	}
 
 	cmd := GameCommand{
