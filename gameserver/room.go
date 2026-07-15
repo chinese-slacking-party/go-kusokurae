@@ -163,84 +163,14 @@ func (r *Room) StartGame(requesterID string) error {
 	g := NewGame(r.GameConfig, int32(len(players)))
 	r.game.Store(g)
 
+	// Wire game channels into run() select
+	r.eventCh = g.EventCh
+	r.gameOverCh = g.GameOver
+	r.cmdCh = g.CmdCh
+
 	go g.GameFn(context.Background())
-	go r.gameEventLoop(g, players)
 
 	return nil
-}
-
-func (r *Room) RoomFn(ctx context.Context) {
-	// Deprecated: per-player consumer goroutines are now started in AddPlayer
-	<-ctx.Done()
-}
-
-func (r *Room) handleRoomMessage(player *Player, msg Message) {
-	switch msg.MsgType {
-	case MSG_TYPE_START_GAME:
-		if err := r.StartGame(player.ID); err != nil {
-			select {
-			case player.NoticeCh <- Message{
-				MsgType: MSG_TYPE_ERROR,
-				MsgBody: &ErrorBody{Message: err.Error()},
-			}:
-			default:
-			}
-		}
-
-	case MSG_TYPE_PLAY_CARD:
-		if g := r.game.Load(); g != nil {
-			select {
-			case g.CmdCh <- GameCommand{
-				PlayerIdx: int(player.RoomPosition),
-				Msg:       msg,
-			}:
-			case <-g.GameOver:
-			case <-r.Ctx.Done():
-			}
-		}
-	}
-}
-
-func (r *Room) gameEventLoop(g *Game, players []*Player) {
-	var currentTurnIdx int = -1
-	var playableIndices []int
-
-	for {
-		select {
-		case event := <-g.EventCh:
-			switch event.Msg.MsgType {
-			case MSG_TYPE_YOUR_TURN:
-				idx := event.Target
-				body := event.Msg.MsgBody.(*YourTurnBody)
-				if !r.isPlayerConnected(players[idx]) {
-					r.autoPlayCard(g, idx, body.PlayableIndices)
-				} else {
-					r.sendToPlayer(players[idx], event.Msg)
-					currentTurnIdx = idx
-					playableIndices = body.PlayableIndices
-				}
-
-			default:
-				if event.Target == -1 {
-					r.broadcastToPlayers(players, event.Msg)
-				} else {
-					r.sendToPlayer(players[event.Target], event.Msg)
-				}
-			}
-
-		case <-r.gameDisconnected(players, currentTurnIdx):
-			if currentTurnIdx >= 0 && len(playableIndices) > 0 {
-				r.autoPlayCard(g, currentTurnIdx, playableIndices)
-				currentTurnIdx = -1
-				playableIndices = nil
-			}
-
-		case <-g.GameOver:
-			return
-		case <-r.Ctx.Done():
-			return
-		}
-	}
 }
 
 func (r *Room) sendToPlayer(p *Player, msg Message) {
@@ -261,13 +191,6 @@ func (r *Room) broadcastToPlayers(players []*Player, msg Message) {
 
 func (r *Room) isPlayerConnected(p *Player) bool {
 	return p != nil && p.Session != nil
-}
-
-func (r *Room) gameDisconnected(players []*Player, idx int) chan struct{} {
-	if idx < 0 || idx >= len(players) || players[idx] == nil {
-		return nil
-	}
-	return players[idx].Disconnected
 }
 
 func (r *Room) autoPlayCard(g *Game, idx int, playableIndices []int) {
