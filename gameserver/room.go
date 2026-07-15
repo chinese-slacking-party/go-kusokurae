@@ -27,6 +27,17 @@ type Room struct {
 	HostPlayerIdx  int32
 	CurrentPlayers int32
 	Players        []*Player
+
+	// Slot arrays for run() select — nil means empty/inactive
+	opChs      [4]chan Message
+	discChs    [4]chan struct{}
+	eventCh    chan GameEvent
+	gameOverCh chan struct{}
+	cmdCh      chan GameCommand
+
+	// Per-game state for disconnect auto-play
+	currentTurnIdx  int
+	playableIndices []int
 }
 
 var roomRepositoryMu sync.Mutex
