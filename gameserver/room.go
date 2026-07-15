@@ -74,17 +74,12 @@ func NewRoom(id string, host *Player, config *sm.GameConfig) *Room {
 	host.Sit(id, 0)
 	roomRepository[id] = r
 
-	// Start consumer goroutine for host's OperatorCh
-	go func(player *Player) {
-		for {
-			select {
-			case msg := <-player.OperatorCh:
-				r.handleRoomMessage(player, msg)
-			case <-r.Ctx.Done():
-				return
-			}
-		}
-	}(host)
+	// Wire host's channels into slot 0
+	r.opChs[0] = host.OperatorCh
+	r.discChs[0] = host.Disconnected
+
+	// Single goroutine for all message routing
+	go r.run()
 
 	return r
 }
@@ -102,17 +97,9 @@ func (r *Room) AddPlayer(player *Player) error {
 	r.CurrentPlayers++
 	player.Sit(r.ID, position)
 
-	// Start per-player consumer for OperatorCh messages (e.g., START_GAME)
-	go func(player *Player) {
-		for {
-			select {
-			case msg := <-player.OperatorCh:
-				r.handleRoomMessage(player, msg)
-			case <-r.Ctx.Done():
-				return
-			}
-		}
-	}(player)
+	// Wire player's channels into the slot for run() select
+	r.opChs[position] = player.OperatorCh
+	r.discChs[position] = player.Disconnected
 
 	r.Broadcast(Message{
 		MsgType: MSG_TYPE_PLAYER_JOINED,
