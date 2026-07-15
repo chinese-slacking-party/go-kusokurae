@@ -396,3 +396,32 @@ func (r *Room) handleGameOver() {
 func (r *Room) UpdateDiscChannel(idx int, ch chan struct{}) {
 	r.discChs[idx] = ch
 }
+
+func (r *Room) run() {
+	for {
+		select {
+		case msg := <-r.opChs[0]:
+			r.handlePlayerMessage(0, msg)
+		case <-r.discChs[0]:
+			r.handleDisconnect(0)
+		case msg := <-r.opChs[1]:
+			r.handlePlayerMessage(1, msg)
+		case <-r.discChs[1]:
+			r.handleDisconnect(1)
+		case msg := <-r.opChs[2]:
+			r.handlePlayerMessage(2, msg)
+		case <-r.discChs[2]:
+			r.handleDisconnect(2)
+		case msg := <-r.opChs[3]:
+			r.handlePlayerMessage(3, msg)
+		case <-r.discChs[3]:
+			r.handleDisconnect(3)
+		case event := <-r.eventCh:
+			r.handleGameEvent(event)
+		case <-r.gameOverCh:
+			r.handleGameOver()
+		case <-r.Ctx.Done():
+			return
+		}
+	}
+}
