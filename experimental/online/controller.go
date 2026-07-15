@@ -63,6 +63,9 @@ func handleWebSocket(c *gin.Context) {
 
 	s := gameserver.NewSession(conn, player)
 
+	// Notify room goroutine to monitor the new Disconnected channel
+	room.UpdateDiscChannel(int(player.RoomPosition), player.Disconnected)
+
 	go s.SessionControl(c.Request.Context())
 	go s.Input(c.Request.Context())
 	go s.Output(c.Request.Context())
