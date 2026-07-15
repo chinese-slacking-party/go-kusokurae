@@ -39,17 +39,29 @@ func TestRun_DisconnectHandlesAutoPlay(t *testing.T) {
 	err := room.AddPlayer(p2)
 	assert.NoError(t, err)
 
-	// Set up a fake disconnect: close player's Disconnected channel
-	// First, simulate what Session does on error
-	close(p2.Disconnected)
-	p2.Session = nil
+	// Set up state on run() goroutine to avoid data races
+	done := make(chan struct{})
+	room.internalCh <- func() {
+		close(p2.Disconnected)
+		p2.Session = nil
+		close(done)
+	}
+	<-done
 
 	// run() should pick up the closed discChs[1] and call handleDisconnect
 	// Since there's no active game, it should just nil out discChs[1]
 	time.Sleep(50 * time.Millisecond)
 
-	// discChs[1] should be nil'd to prevent repeated firing
-	assert.Nil(t, room.discChs[1])
+	// Read discChs[1] safely on the run() goroutine
+	var discChs1 chan struct{}
+	readDone := make(chan struct{})
+	room.internalCh <- func() {
+		discChs1 = room.discChs[1]
+		close(readDone)
+	}
+	<-readDone
+
+	assert.Nil(t, discChs1)
 }
 
 func TestRun_GameEventRoutesToPlayers(t *testing.T) {
@@ -58,11 +70,16 @@ func TestRun_GameEventRoutesToPlayers(t *testing.T) {
 	config := &sm.GameConfig{NumPlayers: 2}
 	room := NewRoom("test-room-ev", host, config)
 
-	// Manually wire game channels to simulate active game
+	// Manually wire game channels via internalCh to avoid data races
 	eventCh := make(chan GameEvent, 1)
 	gameOverCh := make(chan struct{})
-	room.eventCh = eventCh
-	room.gameOverCh = gameOverCh
+	done := make(chan struct{})
+	room.internalCh <- func() {
+		room.eventCh = eventCh
+		room.gameOverCh = gameOverCh
+		close(done)
+	}
+	<-done
 
 	// Send a broadcast event
 	eventCh <- GameEvent{
@@ -90,23 +107,44 @@ func TestRun_GameOverClearsChannels(t *testing.T) {
 	config := &sm.GameConfig{NumPlayers: 2}
 	room := NewRoom("test-room-go", host, config)
 
-	room.eventCh = make(chan GameEvent)
-	room.gameOverCh = make(chan struct{})
-	room.cmdCh = make(chan GameCommand, 1)
+	// Set up game channels via internalCh
+	done := make(chan struct{})
+	room.internalCh <- func() {
+		room.eventCh = make(chan GameEvent)
+		room.gameOverCh = make(chan struct{})
+		close(done)
+	}
+	<-done
 
 	// Signal game over
 	close(room.gameOverCh)
 
-	// Kick run() to re-evaluate select (race prevention)
+	// Kick run() to re-evaluate select
 	host.OperatorCh <- Message{MsgType: MSG_TYPE_PLAY_CARD}
 
 	time.Sleep(50 * time.Millisecond)
 
-	assert.Nil(t, room.eventCh)
-	assert.Nil(t, room.gameOverCh)
-	assert.Nil(t, room.cmdCh)
-	assert.Equal(t, -1, room.currentTurnIdx)
-	assert.Nil(t, room.playableIndices)
+	// Read field values safely on the run() goroutine
+	var (
+		gotEventCh    chan GameEvent
+		gotGameOverCh chan struct{}
+		gotTurnIdx    int
+		gotPlayable   []int
+	)
+	syncDone := make(chan struct{})
+	room.internalCh <- func() {
+		gotEventCh = room.eventCh
+		gotGameOverCh = room.gameOverCh
+		gotTurnIdx = room.currentTurnIdx
+		gotPlayable = room.playableIndices
+		close(syncDone)
+	}
+	<-syncDone
+
+	assert.Nil(t, gotEventCh)
+	assert.Nil(t, gotGameOverCh)
+	assert.Equal(t, -1, gotTurnIdx)
+	assert.Nil(t, gotPlayable)
 }
 
 func TestRun_DisconnectStaleEventIgnored(t *testing.T) {
@@ -117,17 +155,31 @@ func TestRun_DisconnectStaleEventIgnored(t *testing.T) {
 
 	// Simulate reconnect: new session exists, but old Disconnected fires
 	oldCh := make(chan struct{})
-	room.discChs[0] = oldCh
-	host.Session = &Session{} // non-nil session = connected
+
+	// Set discChs[0] and Session on run() goroutine to avoid data races
+	done := make(chan struct{})
+	room.internalCh <- func() {
+		room.discChs[0] = oldCh
+		host.Session = &Session{}
+		close(done)
+	}
+	<-done
 
 	close(oldCh) // old channel fires
 
-	// Kick run() to re-evaluate select (race prevention)
+	// Kick run() to re-evaluate select
 	host.OperatorCh <- Message{MsgType: MSG_TYPE_PLAY_CARD}
 
 	time.Sleep(50 * time.Millisecond)
 
 	// discChs[0] should be nil'd (to prevent tight loop on closed channel)
-	// Stale guard returns early, but nil-out happens first
-	assert.Nil(t, room.discChs[0])
+	var discChs0 chan struct{}
+	readDone := make(chan struct{})
+	room.internalCh <- func() {
+		discChs0 = room.discChs[0]
+		close(readDone)
+	}
+	<-readDone
+
+	assert.Nil(t, discChs0)
 }

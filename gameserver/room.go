@@ -33,7 +33,9 @@ type Room struct {
 	discChs    [4]chan struct{}
 	eventCh    chan GameEvent
 	gameOverCh chan struct{}
-	cmdCh      chan GameCommand
+
+	// Internal command channel for thread-safe slot array writes
+	internalCh chan func()
 
 	// Per-game state for disconnect auto-play
 	currentTurnIdx  int
@@ -69,6 +71,7 @@ func NewRoom(id string, host *Player, config *sm.GameConfig) *Room {
 		HostPlayerIdx:  0,
 		CurrentPlayers: 1,
 		Players:        make([]*Player, config.NumPlayers),
+		internalCh:     make(chan func()),
 	}
 	r.Players[0] = host
 	host.Sit(id, 0)
@@ -87,6 +90,14 @@ func NewRoom(id string, host *Player, config *sm.GameConfig) *Room {
 func (r *Room) Game() *Game { return r.game.Load() }
 
 func (r *Room) AddPlayer(player *Player) error {
+	errCh := make(chan error, 1)
+	r.internalCh <- func() {
+		errCh <- r.addPlayerInternal(player)
+	}
+	return <-errCh
+}
+
+func (r *Room) addPlayerInternal(player *Player) error {
 	r.Mutex.Lock()
 	defer r.Mutex.Unlock()
 	if r.CurrentPlayers >= r.GameConfig.NumPlayers {
@@ -166,7 +177,6 @@ func (r *Room) StartGame(requesterID string) error {
 	// Wire game channels into run() select
 	r.eventCh = g.EventCh
 	r.gameOverCh = g.GameOver
-	r.cmdCh = g.CmdCh
 
 	go g.GameFn(context.Background())
 
@@ -246,7 +256,10 @@ func (r *Room) handleGameEvent(event GameEvent) {
 	switch event.Msg.MsgType {
 	case MSG_TYPE_YOUR_TURN:
 		idx := event.Target
-		body := event.Msg.MsgBody.(*YourTurnBody)
+		body, ok := event.Msg.MsgBody.(*YourTurnBody)
+		if !ok {
+			return
+		}
 		if !r.isPlayerConnected(r.Players[idx]) {
 			if g := r.game.Load(); g != nil {
 				r.autoPlayCard(g, idx, body.PlayableIndices)
@@ -296,7 +309,6 @@ func (r *Room) handleDisconnect(idx int) {
 func (r *Room) handleGameOver() {
 	r.eventCh = nil
 	r.gameOverCh = nil
-	r.cmdCh = nil
 	r.currentTurnIdx = -1
 	r.playableIndices = nil
 }
@@ -304,7 +316,9 @@ func (r *Room) handleGameOver() {
 // UpdateDiscChannel updates the disconnect channel for a player seat.
 // Called from the HTTP handler on reconnect after replacing player.Disconnected.
 func (r *Room) UpdateDiscChannel(idx int, ch chan struct{}) {
-	r.discChs[idx] = ch
+	r.internalCh <- func() {
+		r.discChs[idx] = ch
+	}
 }
 
 func (r *Room) run() {
@@ -330,6 +344,8 @@ func (r *Room) run() {
 			r.handleGameEvent(event)
 		case <-r.gameOverCh:
 			r.handleGameOver()
+		case fn := <-r.internalCh:
+			fn()
 		case <-r.Ctx.Done():
 			return
 		}
