@@ -299,3 +299,100 @@ func (r *Room) autoPlayCard(g *Game, idx int, playableIndices []int) {
 	case <-g.GameOver:
 	}
 }
+
+func (r *Room) handlePlayerMessage(idx int, msg Message) {
+	p := r.Players[idx]
+	if p == nil {
+		return
+	}
+
+	switch msg.MsgType {
+	case MSG_TYPE_START_GAME:
+		if err := r.StartGame(p.ID); err != nil {
+			select {
+			case p.NoticeCh <- Message{
+				MsgType: MSG_TYPE_ERROR,
+				MsgBody: &ErrorBody{Message: err.Error()},
+			}:
+			default:
+			}
+		}
+
+	case MSG_TYPE_PLAY_CARD:
+		if g := r.game.Load(); g != nil {
+			select {
+			case g.CmdCh <- GameCommand{
+				PlayerIdx: int(p.RoomPosition),
+				Msg:       msg,
+			}:
+			case <-g.GameOver:
+			case <-r.Ctx.Done():
+			}
+		}
+	}
+}
+
+func (r *Room) handleGameEvent(event GameEvent) {
+	switch event.Msg.MsgType {
+	case MSG_TYPE_YOUR_TURN:
+		idx := event.Target
+		body := event.Msg.MsgBody.(*YourTurnBody)
+		if !r.isPlayerConnected(r.Players[idx]) {
+			if g := r.game.Load(); g != nil {
+				r.autoPlayCard(g, idx, body.PlayableIndices)
+			}
+		} else {
+			r.sendToPlayer(r.Players[idx], event.Msg)
+			r.currentTurnIdx = idx
+			r.playableIndices = body.PlayableIndices
+		}
+
+	default:
+		if event.Target == -1 {
+			r.broadcastToPlayers(r.Players, event.Msg)
+		} else {
+			r.sendToPlayer(r.Players[event.Target], event.Msg)
+		}
+	}
+}
+
+func (r *Room) handleDisconnect(idx int) {
+	p := r.Players[idx]
+	if p == nil {
+		return
+	}
+
+	// Nil out the fired channel immediately to prevent tight loop.
+	// A closed channel fires on every select iteration, so we must
+	// remove it before any early-return path.
+	r.discChs[idx] = nil
+
+	// Stale close event from a replaced Disconnected channel (player reconnected).
+	// UpdateDiscChannel will set the new channel after this returns.
+	if p.Session != nil {
+		return
+	}
+
+	// Auto-play if it's this disconnected player's turn
+	if r.currentTurnIdx == idx && len(r.playableIndices) > 0 {
+		if g := r.game.Load(); g != nil {
+			r.autoPlayCard(g, idx, r.playableIndices)
+		}
+		r.currentTurnIdx = -1
+		r.playableIndices = nil
+	}
+}
+
+func (r *Room) handleGameOver() {
+	r.eventCh = nil
+	r.gameOverCh = nil
+	r.cmdCh = nil
+	r.currentTurnIdx = -1
+	r.playableIndices = nil
+}
+
+// UpdateDiscChannel updates the disconnect channel for a player seat.
+// Called from the HTTP handler on reconnect after replacing player.Disconnected.
+func (r *Room) UpdateDiscChannel(idx int, ch chan struct{}) {
+	r.discChs[idx] = ch
+}
