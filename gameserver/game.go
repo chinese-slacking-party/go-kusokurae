@@ -17,7 +17,7 @@ type GameCommand struct {
 }
 
 type GameEvent struct {
-	Target int     // player index, -1 = broadcast
+	Target int // player index, -1 = broadcast
 	Msg    Message
 }
 
@@ -41,18 +41,16 @@ func NewGame(config *sm.GameConfig, numPlayers int32) *Game {
 		ID:         u.String(),
 		Config:     config,
 		NumPlayers: numPlayers,
-		CmdCh:      make(chan GameCommand, 1),
-		EventCh:    make(chan GameEvent, 1),
+		CmdCh:      make(chan GameCommand),
+		EventCh:    make(chan GameEvent),
 		GameOver:   make(chan struct{}),
 	}
 	return g
 }
 
 func (g *Game) emit(target int, msg Message) {
-	select {
-	case g.EventCh <- GameEvent{Target: target, Msg: msg}:
-	default:
-	}
+	g.EventCh <- GameEvent{Target: target, Msg: msg}
+	log.Printf("Game %v emit %v msg to %v\n", g.ID[:8], msg.MsgType, target)
 }
 
 func (g *Game) GameFn(ctx context.Context) {
@@ -102,6 +100,7 @@ func (g *Game) GameFn(ctx context.Context) {
 func (g *Game) handleMove(idx int, msg Message) {
 	g.StateMutex.Lock()
 	defer g.StateMutex.Unlock()
+	log.Printf("Game %s recv %d, %s\n", g.ID[:8], idx, msg.MsgType)
 	if !g.isActivePlayer(int32(idx)) {
 		g.emit(idx, Message{
 			MsgType: MSG_TYPE_ERROR,

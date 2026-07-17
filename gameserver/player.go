@@ -24,7 +24,7 @@ func NewPlayer() *Player {
 		RoomID:       "",
 		RoomPosition: -1,
 		NoticeCh:     make(chan Message),
-		OperatorCh:   make(chan Message, 8),
+		OperatorCh:   make(chan Message),
 		Disconnected: make(chan struct{}),
 	}
 }

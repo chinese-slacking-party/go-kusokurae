@@ -3,6 +3,7 @@ package gameserver
 import (
 	"context"
 	"errors"
+	"log"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -130,14 +131,12 @@ func (r *Room) FindPlayerByID(playerID string) (*Player, error) {
 }
 
 func (r *Room) Broadcast(msg Message) {
-	for _, p := range r.Players {
-		if p != nil && p.Session != nil {
-			select {
-			case p.NoticeCh <- msg:
-			default:
-			}
-		}
-	}
+	// for _, p := range r.Players {
+	// 	if p != nil && p.Session != nil {
+	// 		p.NoticeCh <- msg
+	// 	}
+	// }
+	r.broadcastToPlayers(r.Players, msg)
 }
 
 func (r *Room) broadcastRoomState() {
@@ -187,10 +186,8 @@ func (r *Room) sendToPlayer(p *Player, msg Message) {
 	if p == nil || p.Session == nil {
 		return
 	}
-	select {
-	case p.NoticeCh <- msg:
-	default:
-	}
+	p.NoticeCh <- msg
+	log.Printf("Room %s notice %s to %s\n", r.ID[:8], msg.MsgType, p.ID[:8])
 }
 
 func (r *Room) broadcastToPlayers(players []*Player, msg Message) {
@@ -226,16 +223,15 @@ func (r *Room) handlePlayerMessage(idx int, msg Message) {
 		return
 	}
 
+	log.Printf("Room %s Player %s recv msg %s\n", r.ID[:8], p.ID[:8], msg.MsgType)
+
 	switch msg.MsgType {
 	case MSG_TYPE_START_GAME:
 		if err := r.StartGame(p.ID); err != nil {
-			select {
-			case p.NoticeCh <- Message{
+			r.sendToPlayer(p, Message{
 				MsgType: MSG_TYPE_ERROR,
 				MsgBody: &ErrorBody{Message: err.Error()},
-			}:
-			default:
-			}
+			})
 		}
 
 	case MSG_TYPE_PLAY_CARD:
@@ -284,6 +280,8 @@ func (r *Room) handleDisconnect(idx int) {
 	if p == nil {
 		return
 	}
+
+	log.Printf("Player %s disconnect\n", p.ID[:8])
 
 	// Nil out the fired channel immediately to prevent tight loop.
 	// A closed channel fires on every select iteration, so we must
