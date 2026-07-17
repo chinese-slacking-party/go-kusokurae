@@ -73,6 +73,7 @@ type MoveMadeBody struct {
 type RoundEndBody struct {
 	WinnerIdx int32 `json:"winner_idx"`
 	Score     int32 `json:"score"`
+	IsDoubled bool  `json:"is_doubled"`
 }
 
 type GameOverBody struct {
