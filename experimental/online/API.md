@@ -231,7 +231,8 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
       { "suit": 0, "rank": 3, "playable": false },
       { "suit": 1, "rank": 5, "playable": false }
     ],
-    "first_player_idx": 0
+    "first_player_idx": 0,
+    "your_player_idx": 0
   }
 }
 ```
@@ -240,6 +241,7 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 |------|------|------|
 | hand_cards | CardInfo[] | 该玩家的初始手牌 |
 | first_player_idx | int | 首位行动玩家的座位号 |
+| your_player_idx | int | 接收此消息的玩家座位号（0-based） |
 
 ---
 

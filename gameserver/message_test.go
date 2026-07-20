@@ -21,10 +21,11 @@ func TestGameStartBodyJSON(t *testing.T) {
 			{Suit: -1, Rank: 3, Playable: false},
 		},
 		FirstPlayerIdx: 1,
+		YourPlayerIdx:  0,
 	}
 	b, err := json.Marshal(body)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"hand_cards":[{"suit":0,"rank":5,"playable":true},{"suit":-1,"rank":3,"playable":false}],"first_player_idx":1}`, string(b))
+	assert.JSONEq(t, `{"hand_cards":[{"suit":0,"rank":5,"playable":true},{"suit":-1,"rank":3,"playable":false}],"first_player_idx":1,"your_player_idx":0}`, string(b))
 }
 
 func TestYourTurnBodyJSON(t *testing.T) {

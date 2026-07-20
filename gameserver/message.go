@@ -56,6 +56,7 @@ type RoomPlayerInfo struct {
 type GameStartBody struct {
 	HandCards      []CardInfo `json:"hand_cards"`
 	FirstPlayerIdx int32      `json:"first_player_idx"`
+	YourPlayerIdx  int32      `json:"your_player_idx"`
 }
 
 type YourTurnBody struct {

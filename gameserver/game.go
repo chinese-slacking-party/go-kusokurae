@@ -2,7 +2,6 @@ package gameserver
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync"
 
@@ -61,13 +60,13 @@ func (g *Game) GameFn(ctx context.Context) {
 
 	var err error
 	g.State, err = sm.NewGame(*g.Config, func(state sm.GameStatus) {
-		if g.State.GetStatus() != state {
-			g.emit(-1, Message{
-				MsgType: MSG_TYPE_ERROR,
-				MsgBody: &ErrorBody{Message: fmt.Sprintf("GameStatus %v -> %v", g.State.GetStatus(), state)},
-			})
-			return
-		}
+		// if g.State.GetStatus() != state {
+		// 	g.emit(-1, Message{
+		// 		MsgType: MSG_TYPE_ERROR,
+		// 		MsgBody: &ErrorBody{Message: fmt.Sprintf("GameStatus %v -> %v", g.State.GetStatus(), state)},
+		// 	})
+		// 	return
+		// }
 		rs := g.State.GetRoundState()
 		g.emit(-1, Message{
 			MsgType: MSG_TYPE_ROUND_END,
@@ -95,7 +94,7 @@ func (g *Game) GameFn(ctx context.Context) {
 		handCards := g.buildCardInfos(g.State.GetPlayer(i).GetHandCards())
 		g.emit(int(i), Message{
 			MsgType: MSG_TYPE_GAME_START,
-			MsgBody: &GameStartBody{HandCards: handCards, FirstPlayerIdx: firstIdx},
+			MsgBody: &GameStartBody{HandCards: handCards, FirstPlayerIdx: firstIdx, YourPlayerIdx: i},
 		})
 	}
 
