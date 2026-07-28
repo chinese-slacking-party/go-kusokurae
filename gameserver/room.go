@@ -187,7 +187,7 @@ func (r *Room) sendToPlayer(p *Player, msg Message) {
 		return
 	}
 	p.NoticeCh <- msg
-	log.Printf("Room %s notice %s to %s\n", r.ID[:8], msg.MsgType, p.ID[:8])
+	log.Printf("Room %s notice %s to %s\n", trunc8(r.ID), msg.MsgType, trunc8(p.ID))
 }
 
 func (r *Room) broadcastToPlayers(players []*Player, msg Message) {
@@ -223,7 +223,7 @@ func (r *Room) handlePlayerMessage(idx int, msg Message) {
 		return
 	}
 
-	log.Printf("Room %s Player %s recv msg %s\n", r.ID[:8], p.ID[:8], msg.MsgType)
+	log.Printf("Room %s Player %s recv msg %s\n", trunc8(r.ID), trunc8(p.ID), msg.MsgType)
 
 	switch msg.MsgType {
 	case MSG_TYPE_START_GAME:
@@ -281,7 +281,7 @@ func (r *Room) handleDisconnect(idx int) {
 		return
 	}
 
-	log.Printf("Player %s disconnect\n", p.ID[:8])
+	log.Printf("Player %s disconnect\n", trunc8(p.ID))
 
 	// Nil out the fired channel immediately to prevent tight loop.
 	// A closed channel fires on every select iteration, so we must

@@ -11,6 +11,7 @@ import (
 func TestRun_RoutesPlayerMessage(t *testing.T) {
 	InitRoomRepository()
 	host := NewPlayer()
+	host.Session = &Session{} // needed so sendToPlayer doesn't skip
 	config := &sm.GameConfig{NumPlayers: 3}
 	_ = NewRoom("test-room", host, config)
 

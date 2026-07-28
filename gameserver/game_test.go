@@ -9,7 +9,7 @@ import (
 
 func TestCmdCh_RoutesMessage(t *testing.T) {
 	g := &Game{
-		ID:         "test",
+		ID:         "test-game-01",
 		NumPlayers: 3,
 		CmdCh:      make(chan GameCommand, 1),
 	}
@@ -31,7 +31,7 @@ func TestCmdCh_RoutesMessage(t *testing.T) {
 
 func TestEventCh_EmitsEvent(t *testing.T) {
 	g := &Game{
-		ID:         "test",
+		ID:         "test-game-02",
 		NumPlayers: 2,
 		EventCh:    make(chan GameEvent, 1),
 	}
@@ -49,7 +49,7 @@ func TestEventCh_EmitsEvent(t *testing.T) {
 
 func TestEventCh_BroadcastTarget(t *testing.T) {
 	g := &Game{
-		ID:         "test",
+		ID:         "test-game-03",
 		NumPlayers: 3,
 		EventCh:    make(chan GameEvent, 1),
 	}

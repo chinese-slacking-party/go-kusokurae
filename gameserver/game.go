@@ -48,9 +48,16 @@ func NewGame(config *sm.GameConfig, numPlayers int32) *Game {
 	return g
 }
 
+func trunc8(s string) string {
+	if len(s) > 8 {
+		return s[:8]
+	}
+	return s
+}
+
 func (g *Game) emit(target int, msg Message) {
 	g.EventCh <- GameEvent{Target: target, Msg: msg}
-	log.Printf("Game %v emit %v msg to %v\n", g.ID[:8], msg.MsgType, target)
+	log.Printf("Game %s emit %s msg to %v\n", trunc8(g.ID), msg.MsgType, target)
 }
 
 func (g *Game) GameFn(ctx context.Context) {
@@ -117,7 +124,7 @@ func (g *Game) GameFn(ctx context.Context) {
 func (g *Game) handleMove(idx int, msg Message) {
 	g.StateMutex.Lock()
 	defer g.StateMutex.Unlock()
-	log.Printf("Game %s recv %d, %s\n", g.ID[:8], idx, msg.MsgType)
+	log.Printf("Game %s recv %d, %s\n", trunc8(g.ID), idx, msg.MsgType)
 	if !g.isActivePlayer(int32(idx)) {
 		g.emit(idx, Message{
 			MsgType: MSG_TYPE_ERROR,

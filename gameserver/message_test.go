@@ -43,7 +43,7 @@ func TestRoundEndBodyJSON(t *testing.T) {
 	body := RoundEndBody{WinnerIdx: 2, Score: 5}
 	b, err := json.Marshal(body)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"winner_idx":2,"score":5}`, string(b))
+	assert.JSONEq(t, `{"winner_idx":2,"score":5,"is_doubled":false}`, string(b))
 }
 
 func TestGameOverBodyJSON(t *testing.T) {
