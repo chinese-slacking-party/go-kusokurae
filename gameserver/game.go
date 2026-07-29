@@ -22,14 +22,15 @@ type GameEvent struct {
 }
 
 type Game struct {
-	ID         string
-	StateMutex sync.Mutex
-	Config     *sm.GameConfig
-	State      *sm.GameState
-	NumPlayers int32
-	CmdCh      chan GameCommand
-	EventCh    chan GameEvent
-	GameOver   chan struct{}
+	ID              string
+	StateMutex      sync.Mutex
+	Config          *sm.GameConfig
+	State           *sm.GameState
+	NumPlayers      int32
+	CmdCh           chan GameCommand
+	EventCh         chan GameEvent
+	GameOver        chan struct{}
+	pendingRoundEnd *RoundEndBody
 }
 
 func NewGame(config *sm.GameConfig, numPlayers int32) *Game {
@@ -67,22 +68,12 @@ func (g *Game) GameFn(ctx context.Context) {
 
 	var err error
 	g.State, err = sm.NewGame(*g.Config, func(state sm.GameStatus) {
-		// if g.State.GetStatus() != state {
-		// 	g.emit(-1, Message{
-		// 		MsgType: MSG_TYPE_ERROR,
-		// 		MsgBody: &ErrorBody{Message: fmt.Sprintf("GameStatus %v -> %v", g.State.GetStatus(), state)},
-		// 	})
-		// 	return
-		// }
 		rs := g.State.GetRoundState()
-		g.emit(-1, Message{
-			MsgType: MSG_TYPE_ROUND_END,
-			MsgBody: &RoundEndBody{
-				WinnerIdx: int32(rs.RoundWinner.GetIndex() - 1),
-				Score:     int32(rs.ScoreOnBoard),
-				IsDoubled: rs.IsDoubled,
-			},
-		})
+		g.pendingRoundEnd = &RoundEndBody{
+			WinnerIdx: int32(rs.RoundWinner.GetIndex() - 1),
+			Score:     int32(rs.ScoreOnBoard),
+			IsDoubled: rs.IsDoubled,
+		}
 	})
 	if err != nil {
 		log.Printf("GameFn: failed to create game state: %v", err)
@@ -185,6 +176,13 @@ func (g *Game) handleMove(idx int, msg Message) {
 		MsgBody: &MoveMadeBody{PlayerIdx: int32(idx), Card: playedInfo, RoundMoves: moveInfos},
 	})
 
+	if g.pendingRoundEnd != nil {
+		g.emit(-1, Message{
+			MsgType: MSG_TYPE_ROUND_END,
+			MsgBody: g.pendingRoundEnd,
+		})
+		g.pendingRoundEnd = nil
+	}
 }
 
 func (g *Game) broadcastGameOver() {
