@@ -68,6 +68,12 @@ func (g *Game) GameFn(ctx context.Context) {
 
 	var err error
 	g.State, err = sm.NewGame(*g.Config, func(state sm.GameStatus) {
+		var status = g.State.GetStatus()
+		if status != state {
+			log.Printf("Game %s GameStatus %v -> %v", g.ID, status, state)
+			return
+		}
+
 		rs := g.State.GetRoundState()
 		g.pendingRoundEnd = &RoundEndBody{
 			WinnerIdx: int32(rs.RoundWinner.GetIndex() - 1),
