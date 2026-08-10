@@ -49,6 +49,7 @@ type RoomStateBody struct {
 
 type RoomPlayerInfo struct {
 	PlayerID string `json:"player_id"`
+	Nickname string `json:"nickname"`
 	Position int32  `json:"position"`
 	IsHost   bool   `json:"is_host"`
 }
@@ -89,11 +90,13 @@ type PlayerScore struct {
 
 type PlayerJoinedBody struct {
 	PlayerID string `json:"player_id"`
+	Nickname string `json:"nickname"`
 	Position int32  `json:"position"`
 }
 
 type PlayerLeftBody struct {
 	PlayerID string `json:"player_id"`
+	Nickname string `json:"nickname"`
 	Position int32  `json:"position"`
 }
 

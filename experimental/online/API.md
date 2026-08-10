@@ -51,13 +51,15 @@ POST /api/v1/room/new
 
 ```json
 {
-  "num_players": 3
+  "num_players": 3,
+  "nickname": "小明"
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | num_players | int | 是 | 玩家人数，仅支持 3 或 4 |
+| nickname | string | 是 | 玩家昵称，trim 后 1~20 个字符，仅允许可打印字符（中英文均可） |
 
 **成功响应：**
 
@@ -92,6 +94,7 @@ POST /api/v1/room/join?room_id={room_id}
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | room_id | string | 是 | 要加入的房间 ID |
+| nickname | string | 是 | 玩家昵称，校验规则同创建房间 |
 
 **成功响应：**
 
@@ -124,9 +127,9 @@ POST /api/v1/room/join?room_id={room_id}
 GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 ```
 
-连接成功后，客户端与服务端通过 JSON 消息双向通信。
+连接成功后，客户端与服务端通过 JSON 消息双向通信。**连接建立后服务端会先向该玩家单独发送当前 `ROOM_STATE`**（含所有已入座玩家及 nickname），客户端以此建立玩家名单。
 
-**断线重连：** 使用相同的 URL 重新建立 WebSocket 连接即可。服务端会关闭旧连接、复用已有 Player 状态。如果游戏进行中且轮到该玩家，会立即收到 `YOUR_TURN` 消息恢复状态。
+**断线重连：** 使用相同的 URL 重新建立 WebSocket 连接即可。服务端会关闭旧连接、复用已有 Player 状态（昵称不变）。如果游戏进行中且轮到该玩家，会立即收到 `YOUR_TURN` 消息恢复状态。注意：开局后连入的玩家**不会**收到手牌补发（`GAME_START`），只能等下一手 `MOVE_MADE` 广播。
 
 ---
 
@@ -186,8 +189,8 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
   "type": "ROOM_STATE",
   "body": {
     "players": [
-      { "player_id": "a1b2...", "position": 0, "is_host": true },
-      { "player_id": "bf3d...", "position": 1, "is_host": false }
+      { "player_id": "a1b2...", "nickname": "小明", "position": 0, "is_host": true },
+      { "player_id": "bf3d...", "nickname": "小红", "position": 1, "is_host": false }
     ],
     "host_idx": 0
   }
@@ -197,6 +200,7 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | players[].player_id | string | 玩家 ID |
+| players[].nickname | string | 玩家昵称（create/join 时提供，房间内以此展示） |
 | players[].position | int | 座位号 (0-based) |
 | players[].is_host | bool | 是否为房主 |
 | host_idx | int | 房主座位号 |
@@ -212,6 +216,7 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
   "type": "PLAYER_JOINED",
   "body": {
     "player_id": "bf3d...",
+    "nickname": "小红",
     "position": 1
   }
 }
@@ -380,18 +385,18 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 ## 六、完整流程示例
 
 ```
-1. 玩家A: POST /api/v1/room/new  { "num_players": 3 }
+1. 玩家A: POST /api/v1/room/new  { "num_players": 3, "nickname": "小明" }
    → 获得 room_id + player_id (房主，position=0)
 
 2. 玩家A: WebSocket /api/v1/communication/{room_id}/{playerA_ID}
-   → 连接建立
+   → 连接建立，收到 ROOM_STATE
 
-3. 玩家B: POST /api/v1/room/join?room_id={room_id}
+3. 玩家B: POST /api/v1/room/join?room_id={room_id}&nickname=小红
    → 获得 player_id (position=1)
    → 玩家A 收到 PLAYER_JOINED + ROOM_STATE
 
 4. 玩家B: WebSocket /api/v1/communication/{room_id}/{playerB_ID}
-   → 连接建立
+   → 连接建立，收到 ROOM_STATE
 
 5. 玩家C: POST /api/v1/room/join → WebSocket 连接
    → 全员收到 ROOM_STATE，3人满员

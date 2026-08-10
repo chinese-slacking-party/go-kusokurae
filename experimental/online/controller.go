@@ -70,6 +70,9 @@ func handleWebSocket(c *gin.Context) {
 	go s.Input(c.Request.Context())
 	go s.Output(c.Request.Context())
 
+	// Send current room roster on connect (ADR-0003)
+	s.Player.NoticeCh <- room.BuildRoomStateMessage()
+
 	// If game is in progress, re-sync state to the reconnected player
 	if g := room.Game(); g != nil && g.State != nil {
 		g.StateMutex.Lock()
@@ -115,13 +118,19 @@ func handleWebSocket(c *gin.Context) {
 }
 
 func CreateRoom(ctx *gin.Context) {
-	var gameConfig sm.GameConfig
-	if err := ctx.BindJSON(&gameConfig); err != nil {
+	var req CreateRoomReq
+	if err := ctx.BindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, err.Error()))
 		return
 	}
-	if gameConfig.NumPlayers != 3 && gameConfig.NumPlayers != 4 {
+	if req.NumPlayers != 3 && req.NumPlayers != 4 {
 		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, "Invalid number of players"))
+		return
+	}
+
+	host, err := gameserver.NewPlayer(req.Nickname)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, err.Error()))
 		return
 	}
 
@@ -131,13 +140,17 @@ func CreateRoom(ctx *gin.Context) {
 		return
 	}
 
-	host := gameserver.NewPlayer()
-	room := gameserver.NewRoom(u.String(), host, &gameConfig)
+	room := gameserver.NewRoom(u.String(), host, &sm.GameConfig{NumPlayers: req.NumPlayers})
 
 	ctx.JSON(200, NewSuccessRes(&JoinRoomRet{
 		RoomID:   room.ID,
 		PlayerID: host.ID,
 	}))
+}
+
+type CreateRoomReq struct {
+	NumPlayers int32  `json:"num_players"`
+	Nickname   string `json:"nickname"`
 }
 
 type JoinRoomRet struct {
@@ -162,7 +175,11 @@ func JoinRoom(ctx *gin.Context) {
 		return
 	}
 
-	player := gameserver.NewPlayer()
+	player, err := gameserver.NewPlayer(ctx.Query("nickname"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, err.Error()))
+		return
+	}
 	if err := room.AddPlayer(player); err != nil {
 		ctx.JSON(200, NewErrorRes(COMMON_ERR_CODE, err.Error()))
 		return

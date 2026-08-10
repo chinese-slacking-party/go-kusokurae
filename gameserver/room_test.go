@@ -10,7 +10,7 @@ import (
 
 func TestRun_RoutesPlayerMessage(t *testing.T) {
 	InitRoomRepository()
-	host := NewPlayer()
+	host, _ := NewPlayer("host")
 	host.Session = &Session{} // needed so sendToPlayer doesn't skip
 	config := &sm.GameConfig{NumPlayers: 3}
 	_ = NewRoom("test-room", host, config)
@@ -31,12 +31,12 @@ func TestRun_RoutesPlayerMessage(t *testing.T) {
 
 func TestRun_DisconnectHandlesAutoPlay(t *testing.T) {
 	InitRoomRepository()
-	host := NewPlayer()
+	host, _ := NewPlayer("host")
 	config := &sm.GameConfig{NumPlayers: 2}
 	room := NewRoom("test-room-dc", host, config)
 
 	// Add second player
-	p2 := NewPlayer()
+	p2, _ := NewPlayer("p2")
 	err := room.AddPlayer(p2)
 	assert.NoError(t, err)
 
@@ -67,7 +67,7 @@ func TestRun_DisconnectHandlesAutoPlay(t *testing.T) {
 
 func TestRun_GameEventRoutesToPlayers(t *testing.T) {
 	InitRoomRepository()
-	host := NewPlayer()
+	host, _ := NewPlayer("host")
 	config := &sm.GameConfig{NumPlayers: 2}
 	room := NewRoom("test-room-ev", host, config)
 
@@ -104,7 +104,7 @@ func TestRun_GameEventRoutesToPlayers(t *testing.T) {
 
 func TestRun_GameOverClearsChannels(t *testing.T) {
 	InitRoomRepository()
-	host := NewPlayer()
+	host, _ := NewPlayer("host")
 	config := &sm.GameConfig{NumPlayers: 2}
 	room := NewRoom("test-room-go", host, config)
 
@@ -150,7 +150,7 @@ func TestRun_GameOverClearsChannels(t *testing.T) {
 
 func TestRun_DisconnectStaleEventIgnored(t *testing.T) {
 	InitRoomRepository()
-	host := NewPlayer()
+	host, _ := NewPlayer("host")
 	config := &sm.GameConfig{NumPlayers: 2}
 	room := NewRoom("test-room-stale", host, config)
 

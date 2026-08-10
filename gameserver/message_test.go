@@ -66,14 +66,21 @@ func TestErrorBodyJSON(t *testing.T) {
 func TestRoomStateBodyJSON(t *testing.T) {
 	body := RoomStateBody{
 		Players: []RoomPlayerInfo{
-			{PlayerID: "abc", Position: 1, IsHost: true},
-			{PlayerID: "def", Position: 2, IsHost: false},
+			{PlayerID: "abc", Nickname: "房主", Position: 1, IsHost: true},
+			{PlayerID: "def", Nickname: "Alice", Position: 2, IsHost: false},
 		},
 		HostIdx: 0,
 	}
 	b, err := json.Marshal(body)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"players":[{"player_id":"abc","position":1,"is_host":true},{"player_id":"def","position":2,"is_host":false}],"host_idx":0}`, string(b))
+	assert.JSONEq(t, `{"players":[{"player_id":"abc","nickname":"房主","position":1,"is_host":true},{"player_id":"def","nickname":"Alice","position":2,"is_host":false}],"host_idx":0}`, string(b))
+}
+
+func TestPlayerJoinedBodyJSON(t *testing.T) {
+	body := PlayerJoinedBody{PlayerID: "abc", Nickname: "小明", Position: 2}
+	b, err := json.Marshal(body)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"player_id":"abc","nickname":"小明","position":2}`, string(b))
 }
 
 func TestMoveMadeBodyJSON(t *testing.T) {

@@ -139,19 +139,32 @@ func (r *Room) Broadcast(msg Message) {
 	r.broadcastToPlayers(r.Players, msg)
 }
 
-func (r *Room) broadcastRoomState() {
+func (r *Room) buildRoomStateMessage() Message {
 	players := make([]RoomPlayerInfo, r.CurrentPlayers)
 	for i := int32(0); i < r.CurrentPlayers; i++ {
 		players[i] = RoomPlayerInfo{
 			PlayerID: r.Players[i].ID,
+			Nickname: r.Players[i].Nickname,
 			Position: i,
 			IsHost:   i == r.HostPlayerIdx,
 		}
 	}
-	r.Broadcast(Message{
+	return Message{
 		MsgType: MSG_TYPE_ROOM_STATE,
 		MsgBody: &RoomStateBody{Players: players, HostIdx: r.HostPlayerIdx},
-	})
+	}
+}
+
+func (r *Room) broadcastRoomState() {
+	r.Broadcast(r.buildRoomStateMessage())
+}
+
+// BuildRoomStateMessage returns the current room roster as a ROOM_STATE message.
+// Thread-safe: takes the room mutex, safe to call from the HTTP handler goroutine.
+func (r *Room) BuildRoomStateMessage() Message {
+	r.Mutex.Lock()
+	defer r.Mutex.Unlock()
+	return r.buildRoomStateMessage()
 }
 
 func (r *Room) StartGame(requesterID string) error {
