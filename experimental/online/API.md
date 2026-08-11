@@ -62,6 +62,7 @@ POST /api/v1/room/new
 | num_players | int | 是 | 玩家人数，仅支持 3 或 4 |
 | nickname | string | 是 | 玩家昵称，trim 后 1~20 个字符，仅允许可打印字符（中英文均可） |
 | turn_timeout_seconds | int | 否 | 每回合出牌时限（秒），范围 5~120；缺省/0 时默认 30 |
+| turn_sync_interval_seconds | int | 否 | 回合时间同步事件间隔（秒），缺省/0 时默认 5；须在 1~60 且小于 turn_timeout_seconds |
 
 **成功响应：**
 
@@ -275,6 +276,7 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 | round_seq | int | 当前轮次序号 |
 | round_moves | CardInfo[] | 本轮已出的牌 |
 | timeout_seconds | int | 本回合出牌时限（秒），超时未出牌将自动出最大可出牌 |
+| remaining_seconds | int | 本回合剩余秒数（服务器计算，向上取整）；失败重发/重连补发时也准确反映真实剩余时间 |
 
 > 出牌被拒绝（非法索引、规则不允许等）时，服务端会先发送 `ERROR`，随后**重新发送一份 `YOUR_TURN`**（同样的回合数据）供客户端重新出牌。重新下发**不会重置**出牌倒计时。
 
@@ -353,7 +355,30 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 
 ---
 
-### 4.8 错误消息 `ERROR`
+### 4.8 回合时间同步 `TURN_TIME_SYNC`
+
+回合进行中，服务端按 `turn_sync_interval_seconds`（缺省 5s）间隔**仅向当前行动玩家**发送时间同步事件，用于校正客户端本地倒计时。
+
+```json
+{
+  "type": "TURN_TIME_SYNC",
+  "body": {
+    "remaining_seconds": 8,
+    "round_seq": 3
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| remaining_seconds | int | 本回合剩余秒数（服务器计算，向上取整） |
+| round_seq | int | 当前轮次序号，用于丢弃过期 tick |
+
+> 客户端以 `YOUR_TURN.remaining_seconds` 初始化本地倒计时，此后每次收到 `TURN_TIME_SYNC` 校正。收到重发的 `YOUR_TURN`（出牌失败/重连）时以其中的 `remaining_seconds` 重新对齐——它不表示新回合。
+
+---
+
+### 4.9 错误消息 `ERROR`
 
 操作失败时单独发送给对应玩家。
 

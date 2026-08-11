@@ -71,3 +71,22 @@ func TestValidateTurnTimeoutSec(t *testing.T) {
 	assert.Error(t, ValidateTurnTimeoutSec(4))
 	assert.Error(t, ValidateTurnTimeoutSec(121))
 }
+
+func TestValidateTurnSyncIntervalSec(t *testing.T) {
+	// 0 = default, always valid
+	assert.NoError(t, ValidateTurnSyncIntervalSec(0, 0))
+	assert.NoError(t, ValidateTurnSyncIntervalSec(0, 30))
+	// valid: within 1..60 and strictly less than turn timeout
+	assert.NoError(t, ValidateTurnSyncIntervalSec(5, 30))
+	assert.NoError(t, ValidateTurnSyncIntervalSec(1, 5))
+	assert.NoError(t, ValidateTurnSyncIntervalSec(60, 120))
+	// turn timeout 0 means default 30
+	assert.NoError(t, ValidateTurnSyncIntervalSec(29, 0))
+	// must be strictly less than turn timeout
+	assert.Error(t, ValidateTurnSyncIntervalSec(30, 30))
+	assert.Error(t, ValidateTurnSyncIntervalSec(5, 5))
+	assert.Error(t, ValidateTurnSyncIntervalSec(30, 0))
+	// range violations
+	assert.Error(t, ValidateTurnSyncIntervalSec(61, 120))
+	assert.Error(t, ValidateTurnSyncIntervalSec(-1, 30))
+}

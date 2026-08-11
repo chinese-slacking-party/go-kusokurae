@@ -10,12 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newTestGame creates a started game with a custom turn timeout, with GameFn
-// running in the background. Events must be drained from g.EventCh by the test.
-func newTestGame(t *testing.T, timeout time.Duration) (*Game, context.CancelFunc) {
+// newTestGame creates a started game with a custom turn timeout and sync
+// interval, with GameFn running in the background. Events must be drained from
+// g.EventCh by the test.
+func newTestGame(t *testing.T, timeout, syncInterval time.Duration) (*Game, context.CancelFunc) {
 	cfg := &sm.GameConfig{NumPlayers: 3}
 	g := NewGame(cfg, 3)
 	g.TurnTimeout = timeout
+	g.TurnSyncInterval = syncInterval
 	var err error
 	g.State, err = sm.NewGame(*cfg, nil)
 	require.NoError(t, err)
@@ -41,7 +43,7 @@ func waitEvent(t *testing.T, g *Game, msgType string) GameEvent {
 }
 
 func TestGameFn_TurnTimeoutAutoPlay(t *testing.T) {
-	g, cancel := newTestGame(t, 100*time.Millisecond)
+	g, cancel := newTestGame(t, 100*time.Millisecond, 0)
 	defer cancel()
 
 	ev := waitEvent(t, g, MSG_TYPE_MOVE_MADE)
@@ -51,7 +53,7 @@ func TestGameFn_TurnTimeoutAutoPlay(t *testing.T) {
 }
 
 func TestGameFn_InvalidMoveResendsYourTurn(t *testing.T) {
-	g, cancel := newTestGame(t, 5*time.Second)
+	g, cancel := newTestGame(t, 5*time.Second, 0)
 	defer cancel()
 
 	// Wait for the first YOUR_TURN of the game
@@ -63,7 +65,8 @@ func TestGameFn_InvalidMoveResendsYourTurn(t *testing.T) {
 		Msg:       Message{MsgType: MSG_TYPE_PLAY_CARD, MsgBody: map[string]interface{}{"card_index": float64(999)}},
 	}
 
-	// Expect ERROR followed by a re-sent YOUR_TURN (same turn, new prompt)
+	// Expect ERROR, then a fresh YOUR_TURN carrying the true remaining time
+	// (not a full restart of the countdown).
 	deadline := time.After(3 * time.Second)
 	gotErr := false
 	for {
@@ -74,6 +77,10 @@ func TestGameFn_InvalidMoveResendsYourTurn(t *testing.T) {
 				gotErr = true
 			case MSG_TYPE_YOUR_TURN:
 				if gotErr {
+					body, ok := ev.Msg.MsgBody.(*YourTurnBody)
+					require.True(t, ok)
+					assert.Greater(t, body.RemainingSeconds, 0)
+					assert.LessOrEqual(t, body.RemainingSeconds, body.TimeoutSeconds)
 					return
 				}
 			}
@@ -84,7 +91,7 @@ func TestGameFn_InvalidMoveResendsYourTurn(t *testing.T) {
 }
 
 func TestGameFn_InvalidMovesDoNotExtendDeadline(t *testing.T) {
-	g, cancel := newTestGame(t, 200*time.Millisecond)
+	g, cancel := newTestGame(t, 200*time.Millisecond, 0)
 	defer cancel()
 
 	// Continuously send invalid moves for ~900ms. With the deadline anchored to
@@ -118,4 +125,36 @@ func TestGameFn_InvalidMovesDoNotExtendDeadline(t *testing.T) {
 	body, ok := ev.Msg.MsgBody.(*MoveMadeBody)
 	require.True(t, ok)
 	assert.True(t, body.AutoPlay)
+}
+
+func TestGameFn_TurnTimeSyncTicks(t *testing.T) {
+	g, cancel := newTestGame(t, 300*time.Millisecond, 50*time.Millisecond)
+	defer cancel()
+
+	// YOUR_TURN must carry remaining_seconds
+	ev := waitEvent(t, g, MSG_TYPE_YOUR_TURN)
+	yt, ok := ev.Msg.MsgBody.(*YourTurnBody)
+	require.True(t, ok)
+	assert.Greater(t, yt.RemainingSeconds, 0)
+
+	// TURN_TIME_SYNC ticks must arrive at the active player before auto-play
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case ev := <-g.EventCh:
+			switch ev.Msg.MsgType {
+			case MSG_TYPE_TURN_TIME_SYNC:
+				body, ok := ev.Msg.MsgBody.(*TurnTimeSyncBody)
+				require.True(t, ok)
+				assert.Greater(t, body.RemainingSeconds, 0)
+				assert.GreaterOrEqual(t, ev.Target, 0)
+				assert.Equal(t, yt.RoundSeq, body.RoundSeq)
+				return
+			case MSG_TYPE_MOVE_MADE:
+				t.Fatal("auto-play fired before any TURN_TIME_SYNC tick")
+			}
+		case <-deadline:
+			t.Fatal("timeout: no TURN_TIME_SYNC received")
+		}
+	}
 }

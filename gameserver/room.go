@@ -19,16 +19,17 @@ var ErrNotEnoughPlayers = errors.New("not enough players")
 var ErrNotHost = errors.New("only host can start game")
 
 type Room struct {
-	ID             string
-	Ctx            context.Context
-	cancel         context.CancelFunc
-	Mutex          sync.Mutex
-	GameConfig     *sm.GameConfig
-	game           atomic.Pointer[Game]
-	HostPlayerIdx  int32
-	CurrentPlayers int32
-	Players        []*Player
-	TurnTimeoutSec int32
+	ID                  string
+	Ctx                 context.Context
+	cancel              context.CancelFunc
+	Mutex               sync.Mutex
+	GameConfig          *sm.GameConfig
+	game                atomic.Pointer[Game]
+	HostPlayerIdx       int32
+	CurrentPlayers      int32
+	Players             []*Player
+	TurnTimeoutSec      int32
+	TurnSyncIntervalSec int32
 
 	// Slot arrays for run() select — nil means empty/inactive
 	opChs      [4]chan Message
@@ -184,6 +185,10 @@ func (r *Room) StartGame(requesterID string) error {
 	g.TurnTimeout = time.Duration(r.TurnTimeoutSec) * time.Second
 	if g.TurnTimeout <= 0 {
 		g.TurnTimeout = DefaultTurnTimeout
+	}
+	g.TurnSyncInterval = time.Duration(r.TurnSyncIntervalSec) * time.Second
+	if g.TurnSyncInterval <= 0 {
+		g.TurnSyncInterval = DefaultTurnSyncInterval
 	}
 	r.game.Store(g)
 

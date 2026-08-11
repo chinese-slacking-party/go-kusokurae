@@ -30,14 +30,22 @@ func TestGameStartBodyJSON(t *testing.T) {
 
 func TestYourTurnBodyJSON(t *testing.T) {
 	body := YourTurnBody{
-		PlayableIndices: []int{0, 2, 5},
-		RoundSeq:        3,
-		RoundMoves:      []CardInfo{{Suit: 0, Rank: 4, Playable: false}},
-		TimeoutSeconds:  30,
+		PlayableIndices:  []int{0, 2, 5},
+		RoundSeq:         3,
+		RoundMoves:       []CardInfo{{Suit: 0, Rank: 4, Playable: false}},
+		TimeoutSeconds:   30,
+		RemainingSeconds: 28,
 	}
 	b, err := json.Marshal(body)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"playable_indices":[0,2,5],"round_seq":3,"round_moves":[{"suit":0,"rank":4,"playable":false}],"timeout_seconds":30}`, string(b))
+	assert.JSONEq(t, `{"playable_indices":[0,2,5],"round_seq":3,"round_moves":[{"suit":0,"rank":4,"playable":false}],"timeout_seconds":30,"remaining_seconds":28}`, string(b))
+}
+
+func TestTurnTimeSyncBodyJSON(t *testing.T) {
+	body := TurnTimeSyncBody{RemainingSeconds: 8, RoundSeq: 3}
+	b, err := json.Marshal(body)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"remaining_seconds":8,"round_seq":3}`, string(b))
 }
 
 func TestRoundEndBodyJSON(t *testing.T) {

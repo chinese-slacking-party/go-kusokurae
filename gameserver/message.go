@@ -16,6 +16,7 @@ const MSG_TYPE_YOUR_TURN = "YOUR_TURN"
 const MSG_TYPE_MOVE_MADE = "MOVE_MADE"
 const MSG_TYPE_ROUND_END = "ROUND_END"
 const MSG_TYPE_GAME_OVER = "GAME_OVER"
+const MSG_TYPE_TURN_TIME_SYNC = "TURN_TIME_SYNC"
 const MSG_TYPE_PLAYER_JOINED = "PLAYER_JOINED"
 const MSG_TYPE_PLAYER_LEFT = "PLAYER_LEFT"
 
@@ -61,10 +62,16 @@ type GameStartBody struct {
 }
 
 type YourTurnBody struct {
-	PlayableIndices []int      `json:"playable_indices"`
-	RoundSeq        int        `json:"round_seq"`
-	RoundMoves      []CardInfo `json:"round_moves"`
-	TimeoutSeconds  int        `json:"timeout_seconds"`
+	PlayableIndices  []int      `json:"playable_indices"`
+	RoundSeq         int        `json:"round_seq"`
+	RoundMoves       []CardInfo `json:"round_moves"`
+	TimeoutSeconds   int        `json:"timeout_seconds"`
+	RemainingSeconds int        `json:"remaining_seconds"`
+}
+
+type TurnTimeSyncBody struct {
+	RemainingSeconds int `json:"remaining_seconds"`
+	RoundSeq         int `json:"round_seq"`
 }
 
 type MoveMadeBody struct {

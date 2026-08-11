@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"sync"
 	"time"
 
@@ -14,9 +15,12 @@ import (
 const MaxPlayers = 4
 
 const (
-	DefaultTurnTimeout = 30 * time.Second
-	MinTurnTimeoutSec  = 5
-	MaxTurnTimeoutSec  = 120
+	DefaultTurnTimeout      = 30 * time.Second
+	MinTurnTimeoutSec       = 5
+	MaxTurnTimeoutSec       = 120
+	DefaultTurnSyncInterval = 5 * time.Second
+	MinTurnSyncIntervalSec  = 1
+	MaxTurnSyncIntervalSec  = 60
 )
 
 // ValidateTurnTimeoutSec checks a turn timeout value in seconds.
@@ -27,6 +31,27 @@ func ValidateTurnTimeoutSec(secs int32) error {
 	}
 	if secs < MinTurnTimeoutSec || secs > MaxTurnTimeoutSec {
 		return fmt.Errorf("turn_timeout_seconds must be between %d and %d", MinTurnTimeoutSec, MaxTurnTimeoutSec)
+	}
+	return nil
+}
+
+// ValidateTurnSyncIntervalSec checks a sync interval value in seconds against
+// the turn timeout. 0 means "use the default". A valid interval is within
+// 1..MaxTurnSyncIntervalSec and strictly less than the effective turn timeout
+// (turnTimeoutSec 0 means the default 30s).
+func ValidateTurnSyncIntervalSec(secs, turnTimeoutSec int32) error {
+	if secs == 0 {
+		return nil
+	}
+	if secs < MinTurnSyncIntervalSec || secs > MaxTurnSyncIntervalSec {
+		return fmt.Errorf("turn_sync_interval_seconds must be between %d and %d", MinTurnSyncIntervalSec, MaxTurnSyncIntervalSec)
+	}
+	effectiveTimeout := turnTimeoutSec
+	if effectiveTimeout == 0 {
+		effectiveTimeout = int32(DefaultTurnTimeout / time.Second)
+	}
+	if secs >= effectiveTimeout {
+		return fmt.Errorf("turn_sync_interval_seconds must be less than turn_timeout_seconds (%d)", effectiveTimeout)
 	}
 	return nil
 }
@@ -42,16 +67,18 @@ type GameEvent struct {
 }
 
 type Game struct {
-	ID              string
-	StateMutex      sync.Mutex
-	Config          *sm.GameConfig
-	State           *sm.GameState
-	NumPlayers      int32
-	TurnTimeout     time.Duration
-	CmdCh           chan GameCommand
-	EventCh         chan GameEvent
-	GameOver        chan struct{}
-	pendingRoundEnd *RoundEndBody
+	ID               string
+	StateMutex       sync.Mutex
+	Config           *sm.GameConfig
+	State            *sm.GameState
+	NumPlayers       int32
+	TurnTimeout      time.Duration
+	TurnSyncInterval time.Duration
+	CmdCh            chan GameCommand
+	EventCh          chan GameEvent
+	GameOver         chan struct{}
+	pendingRoundEnd  *RoundEndBody
+	turnDeadline     time.Time
 }
 
 func NewGame(config *sm.GameConfig, numPlayers int32) *Game {
@@ -129,10 +156,14 @@ func (g *Game) GameFn(ctx context.Context) {
 	if g.TurnTimeout <= 0 {
 		g.TurnTimeout = DefaultTurnTimeout
 	}
+	if g.TurnSyncInterval <= 0 {
+		g.TurnSyncInterval = DefaultTurnSyncInterval
+	}
 	for g.State.GetStatus() == sm.StatusPlay {
 		activeIdx := int(g.State.GetActivePlayer().GetIndex() - 1)
+		g.turnDeadline = time.Now().Add(g.TurnTimeout)
 		g.emitYOUR_TURN(activeIdx)
-		if !g.waitForMove(ctx, activeIdx) {
+		if !g.waitForMove(ctx, activeIdx, g.turnDeadline) {
 			return
 		}
 	}
@@ -145,8 +176,9 @@ func (g *Game) GameFn(ctx context.Context) {
 // failed commands (invalid body, forbidden move, ...) only get an ERROR and a
 // re-sent YOUR_TURN — they do NOT reset the deadline. Returns true once a card
 // has been played (by the player or by timeout auto-play).
-func (g *Game) waitForMove(ctx context.Context, activeIdx int) bool {
-	deadline := time.Now().Add(g.TurnTimeout)
+func (g *Game) waitForMove(ctx context.Context, activeIdx int, deadline time.Time) bool {
+	ticker := time.NewTicker(g.TurnSyncInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case cmd := <-g.CmdCh:
@@ -158,10 +190,27 @@ func (g *Game) waitForMove(ctx context.Context, activeIdx int) bool {
 		case <-time.After(time.Until(deadline)):
 			g.handleTurnTimeout(activeIdx)
 			return true
+		case <-ticker.C:
+			g.emitTurnTimeSync(activeIdx, time.Until(deadline))
 		case <-ctx.Done():
 			return false
 		}
 	}
+}
+
+// emitTurnTimeSync sends a periodic time-sync tick to the active player.
+// Ticks with no time left are dropped: the timeout case in waitForMove takes
+// over at the deadline.
+func (g *Game) emitTurnTimeSync(activeIdx int, remaining time.Duration) {
+	secs := int(math.Ceil(remaining.Seconds()))
+	if secs <= 0 {
+		return
+	}
+	rs := g.State.GetRoundState()
+	g.emit(activeIdx, Message{
+		MsgType: MSG_TYPE_TURN_TIME_SYNC,
+		MsgBody: &TurnTimeSyncBody{RemainingSeconds: secs, RoundSeq: rs.Seq},
+	})
 }
 
 // handleMove processes a player command. Returns true if a card was played
@@ -328,10 +377,11 @@ func (g *Game) emitYOUR_TURN(idx int) {
 	g.emit(idx, Message{
 		MsgType: MSG_TYPE_YOUR_TURN,
 		MsgBody: &YourTurnBody{
-			PlayableIndices: playableIndices,
-			RoundSeq:        rs.Seq,
-			RoundMoves:      g.buildCardInfos(rs.Moves),
-			TimeoutSeconds:  int(g.TurnTimeout / time.Second),
+			PlayableIndices:  playableIndices,
+			RoundSeq:         rs.Seq,
+			RoundMoves:       g.buildCardInfos(rs.Moves),
+			TimeoutSeconds:   int(g.TurnTimeout / time.Second),
+			RemainingSeconds: int(math.Ceil(time.Until(g.turnDeadline).Seconds())),
 		},
 	})
 }
