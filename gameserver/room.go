@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"log"
-	"math/rand"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/bs-iron-trio/go-kusokurae/sm"
 )
@@ -28,6 +28,7 @@ type Room struct {
 	HostPlayerIdx  int32
 	CurrentPlayers int32
 	Players        []*Player
+	TurnTimeoutSec int32
 
 	// Slot arrays for run() select — nil means empty/inactive
 	opChs      [4]chan Message
@@ -37,10 +38,6 @@ type Room struct {
 
 	// Internal command channel for thread-safe slot array writes
 	internalCh chan func()
-
-	// Per-game state for disconnect auto-play
-	currentTurnIdx  int
-	playableIndices []int
 }
 
 var roomRepositoryMu sync.Mutex
@@ -184,6 +181,10 @@ func (r *Room) StartGame(requesterID string) error {
 	players := make([]*Player, r.GameConfig.NumPlayers)
 	copy(players, r.Players[:r.GameConfig.NumPlayers])
 	g := NewGame(r.GameConfig, int32(len(players)))
+	g.TurnTimeout = time.Duration(r.TurnTimeoutSec) * time.Second
+	if g.TurnTimeout <= 0 {
+		g.TurnTimeout = DefaultTurnTimeout
+	}
 	r.game.Store(g)
 
 	// Wire game channels into run() select
@@ -213,11 +214,19 @@ func (r *Room) isPlayerConnected(p *Player) bool {
 	return p != nil && p.Session != nil
 }
 
-func (r *Room) autoPlayCard(g *Game, idx int, playableIndices []int) {
-	if len(playableIndices) == 0 {
+func (r *Room) autoPlayCard(g *Game, idx int) {
+	// Pick the largest playable card from the current engine state.
+	g.StateMutex.Lock()
+	chosen := -1
+	if g.State != nil {
+		if p := g.State.GetPlayer(int32(idx)); p != nil {
+			chosen = sm.PickLargestPlayable(p.GetHandCards())
+		}
+	}
+	g.StateMutex.Unlock()
+	if chosen < 0 {
 		return
 	}
-	chosen := playableIndices[rand.Intn(len(playableIndices))]
 	select {
 	case g.CmdCh <- GameCommand{
 		PlayerIdx: idx,
@@ -265,18 +274,12 @@ func (r *Room) handleGameEvent(event GameEvent) {
 	switch event.Msg.MsgType {
 	case MSG_TYPE_YOUR_TURN:
 		idx := event.Target
-		body, ok := event.Msg.MsgBody.(*YourTurnBody)
-		if !ok {
-			return
-		}
 		if !r.isPlayerConnected(r.Players[idx]) {
 			if g := r.game.Load(); g != nil {
-				r.autoPlayCard(g, idx, body.PlayableIndices)
+				r.autoPlayCard(g, idx)
 			}
 		} else {
 			r.sendToPlayer(r.Players[idx], event.Msg)
-			r.currentTurnIdx = idx
-			r.playableIndices = body.PlayableIndices
 		}
 
 	default:
@@ -307,21 +310,25 @@ func (r *Room) handleDisconnect(idx int) {
 		return
 	}
 
-	// Auto-play if it's this disconnected player's turn
-	if r.currentTurnIdx == idx && len(r.playableIndices) > 0 {
-		if g := r.game.Load(); g != nil {
-			r.autoPlayCard(g, idx, r.playableIndices)
+	// Auto-play immediately if it's this disconnected player's turn
+	if g := r.game.Load(); g != nil {
+		g.StateMutex.Lock()
+		isTurn := false
+		if g.State != nil {
+			if ap := g.State.GetActivePlayer(); ap != nil {
+				isTurn = ap.GetIndex()-1 == idx
+			}
 		}
-		r.currentTurnIdx = -1
-		r.playableIndices = nil
+		g.StateMutex.Unlock()
+		if isTurn {
+			r.autoPlayCard(g, idx)
+		}
 	}
 }
 
 func (r *Room) handleGameOver() {
 	r.eventCh = nil
 	r.gameOverCh = nil
-	r.currentTurnIdx = -1
-	r.playableIndices = nil
 }
 
 // UpdateDiscChannel updates the disconnect channel for a player seat.

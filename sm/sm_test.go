@@ -116,3 +116,39 @@ func TestCardString(t *testing.T) {
 		{0, SuitYoutiao, 3, 128},
 	}))
 }
+
+func TestPickLargestPlayable(t *testing.T) {
+	playable := func(rank int32, suit Suit) Card {
+		return Card{displayOrder: 1, suit: suit, rank: rank, flags: 0x80}
+	}
+	unplayable := func(rank int32, suit Suit) Card {
+		return Card{displayOrder: 1, suit: suit, rank: rank}
+	}
+
+	t.Run("picks highest rank among playable", func(t *testing.T) {
+		hand := []Card{
+			playable(3, SuitBaozi),
+			unplayable(9, SuitBaozi),
+			playable(7, SuitYoutiao),
+			playable(5, SuitXiang),
+		}
+		assert.Equal(t, 2, PickLargestPlayable(hand))
+	})
+
+	t.Run("tie breaks to first in hand", func(t *testing.T) {
+		hand := []Card{
+			playable(10, SuitBaozi),
+			playable(10, SuitOther),
+		}
+		assert.Equal(t, 0, PickLargestPlayable(hand))
+	})
+
+	t.Run("no playable returns -1", func(t *testing.T) {
+		hand := []Card{unplayable(9, SuitBaozi), unplayable(3, SuitXiang)}
+		assert.Equal(t, -1, PickLargestPlayable(hand))
+	})
+
+	t.Run("empty hand returns -1", func(t *testing.T) {
+		assert.Equal(t, -1, PickLargestPlayable(nil))
+	})
+}

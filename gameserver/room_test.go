@@ -129,23 +129,17 @@ func TestRun_GameOverClearsChannels(t *testing.T) {
 	var (
 		gotEventCh    chan GameEvent
 		gotGameOverCh chan struct{}
-		gotTurnIdx    int
-		gotPlayable   []int
 	)
 	syncDone := make(chan struct{})
 	room.internalCh <- func() {
 		gotEventCh = room.eventCh
 		gotGameOverCh = room.gameOverCh
-		gotTurnIdx = room.currentTurnIdx
-		gotPlayable = room.playableIndices
 		close(syncDone)
 	}
 	<-syncDone
 
 	assert.Nil(t, gotEventCh)
 	assert.Nil(t, gotGameOverCh)
-	assert.Equal(t, -1, gotTurnIdx)
-	assert.Nil(t, gotPlayable)
 }
 
 func TestRun_DisconnectStaleEventIgnored(t *testing.T) {

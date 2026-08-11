@@ -378,6 +378,21 @@ func (g *GameState) GetRoundState() (ret RoundState) {
 	return
 }
 
+// PickLargestPlayable returns the index of the largest playable card in hand
+// (by rank; ties broken by first occurrence), or -1 if no card is playable.
+func PickLargestPlayable(hand []Card) int {
+	best := -1
+	for i, c := range hand {
+		if !c.Playable() {
+			continue
+		}
+		if best < 0 || c.GetRank() > hand[best].GetRank() {
+			best = i
+		}
+	}
+	return best
+}
+
 // Play plays a card for the active player and return the operation result.
 func (g *GameState) Play(move Card) error {
 	return errcode2Go(C.kusokurae_game_play(g.cPtr(), *(*C.kusokurae_card_t)(unsafe.Pointer(&move))))

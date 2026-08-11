@@ -64,12 +64,14 @@ type YourTurnBody struct {
 	PlayableIndices []int      `json:"playable_indices"`
 	RoundSeq        int        `json:"round_seq"`
 	RoundMoves      []CardInfo `json:"round_moves"`
+	TimeoutSeconds  int        `json:"timeout_seconds"`
 }
 
 type MoveMadeBody struct {
 	PlayerIdx  int32      `json:"player_idx"`
 	Card       CardInfo   `json:"card"`
 	RoundMoves []CardInfo `json:"round_moves"`
+	AutoPlay   bool       `json:"auto_play"`
 }
 
 type RoundEndBody struct {

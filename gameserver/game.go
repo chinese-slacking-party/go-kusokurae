@@ -2,14 +2,34 @@ package gameserver
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/bs-iron-trio/go-kusokurae/sm"
 	"github.com/google/uuid"
 )
 
 const MaxPlayers = 4
+
+const (
+	DefaultTurnTimeout = 30 * time.Second
+	MinTurnTimeoutSec  = 5
+	MaxTurnTimeoutSec  = 120
+)
+
+// ValidateTurnTimeoutSec checks a turn timeout value in seconds.
+// 0 means "use the default" and is always valid.
+func ValidateTurnTimeoutSec(secs int32) error {
+	if secs == 0 {
+		return nil
+	}
+	if secs < MinTurnTimeoutSec || secs > MaxTurnTimeoutSec {
+		return fmt.Errorf("turn_timeout_seconds must be between %d and %d", MinTurnTimeoutSec, MaxTurnTimeoutSec)
+	}
+	return nil
+}
 
 type GameCommand struct {
 	PlayerIdx int
@@ -27,6 +47,7 @@ type Game struct {
 	Config          *sm.GameConfig
 	State           *sm.GameState
 	NumPlayers      int32
+	TurnTimeout     time.Duration
 	CmdCh           chan GameCommand
 	EventCh         chan GameEvent
 	GameOver        chan struct{}
@@ -67,6 +88,7 @@ func (g *Game) GameFn(ctx context.Context) {
 	defer close(g.GameOver)
 
 	var err error
+	g.StateMutex.Lock()
 	g.State, err = sm.NewGame(*g.Config, func(state sm.GameStatus) {
 		var status = g.State.GetStatus()
 		if status != state {
@@ -81,6 +103,7 @@ func (g *Game) GameFn(ctx context.Context) {
 			IsDoubled: rs.IsDoubled,
 		}
 	})
+	g.StateMutex.Unlock()
 	if err != nil {
 		log.Printf("GameFn: failed to create game state: %v", err)
 		return
@@ -102,15 +125,14 @@ func (g *Game) GameFn(ctx context.Context) {
 		})
 	}
 
-	// Main game loop — no disconnect/autoPlay cases
+	// Main game loop
+	if g.TurnTimeout <= 0 {
+		g.TurnTimeout = DefaultTurnTimeout
+	}
 	for g.State.GetStatus() == sm.StatusPlay {
 		activeIdx := int(g.State.GetActivePlayer().GetIndex() - 1)
 		g.emitYOUR_TURN(activeIdx)
-
-		select {
-		case cmd := <-g.CmdCh:
-			g.handleMove(cmd.PlayerIdx, cmd.Msg)
-		case <-ctx.Done():
+		if !g.waitForMove(ctx, activeIdx) {
 			return
 		}
 	}
@@ -118,7 +140,34 @@ func (g *Game) GameFn(ctx context.Context) {
 	g.broadcastGameOver()
 }
 
-func (g *Game) handleMove(idx int, msg Message) {
+// waitForMove waits for the active player to play, returning false only when
+// the context is canceled. The countdown is anchored to the start of the turn:
+// failed commands (invalid body, forbidden move, ...) only get an ERROR and a
+// re-sent YOUR_TURN — they do NOT reset the deadline. Returns true once a card
+// has been played (by the player or by timeout auto-play).
+func (g *Game) waitForMove(ctx context.Context, activeIdx int) bool {
+	deadline := time.Now().Add(g.TurnTimeout)
+	for {
+		select {
+		case cmd := <-g.CmdCh:
+			if g.handleMove(cmd.PlayerIdx, cmd.Msg) {
+				return true
+			}
+			// Failed move: error (+ re-sent YOUR_TURN) already emitted, keep
+			// waiting on the same deadline.
+		case <-time.After(time.Until(deadline)):
+			g.handleTurnTimeout(activeIdx)
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+}
+
+// handleMove processes a player command. Returns true if a card was played
+// (the turn has ended); false otherwise. Failed moves from the active player
+// re-send YOUR_TURN so the client can retry on the same countdown.
+func (g *Game) handleMove(idx int, msg Message) bool {
 	g.StateMutex.Lock()
 	defer g.StateMutex.Unlock()
 	log.Printf("Game %s recv %d, %s\n", trunc8(g.ID), idx, msg.MsgType)
@@ -127,7 +176,7 @@ func (g *Game) handleMove(idx int, msg Message) {
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: "not your turn"},
 		})
-		return
+		return false
 	}
 
 	if msg.MsgType != MSG_TYPE_PLAY_CARD {
@@ -135,26 +184,19 @@ func (g *Game) handleMove(idx int, msg Message) {
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: "unexpected message type: " + msg.MsgType},
 		})
-		return
+		g.emitYOUR_TURN(idx)
+		return false
 	}
 
-	body, ok := msg.MsgBody.(map[string]interface{})
+	cardIdx, ok := playCardIndex(msg.MsgBody)
 	if !ok {
 		g.emit(idx, Message{
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: "invalid play card body"},
 		})
-		return
+		g.emitYOUR_TURN(idx)
+		return false
 	}
-	cardIdxFloat, ok := body["card_index"].(float64)
-	if !ok {
-		g.emit(idx, Message{
-			MsgType: MSG_TYPE_ERROR,
-			MsgBody: &ErrorBody{Message: "card_index must be a number"},
-		})
-		return
-	}
-	cardIdx := int(cardIdxFloat)
 
 	handCards := g.State.GetActivePlayer().GetHandCards()
 	if cardIdx < 0 || cardIdx >= len(handCards) {
@@ -162,16 +204,50 @@ func (g *Game) handleMove(idx int, msg Message) {
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: "card index out of range"},
 		})
-		return
+		g.emitYOUR_TURN(idx)
+		return false
 	}
 
+	if !g.playCard(idx, cardIdx, false) {
+		// Engine rejected the move (e.g. forbidden): re-prompt the player.
+		g.emitYOUR_TURN(idx)
+		return false
+	}
+	return true
+}
+
+// playCardIndex extracts the card index from a PLAY_CARD body, accepting both
+// the JSON-decoded map form (from WebSocket input) and the typed form (from
+// server-side auto-play).
+func playCardIndex(body any) (int, bool) {
+	switch b := body.(type) {
+	case map[string]interface{}:
+		f, ok := b["card_index"].(float64)
+		if !ok {
+			return 0, false
+		}
+		return int(f), true
+	case *PlayCardBody:
+		return b.CardIndex, true
+	}
+	return 0, false
+}
+
+// playCard plays hand[cardIdx] for playerIdx and broadcasts the result.
+// The caller must hold StateMutex. Returns true if the card was played;
+// on engine rejection an ERROR is emitted to the player and false is returned.
+func (g *Game) playCard(playerIdx, cardIdx int, autoPlay bool) bool {
+	handCards := g.State.GetActivePlayer().GetHandCards()
+	if cardIdx < 0 || cardIdx >= len(handCards) {
+		return false
+	}
 	card := handCards[cardIdx]
 	if err := g.State.Play(card); err != nil {
-		g.emit(idx, Message{
+		g.emit(playerIdx, Message{
 			MsgType: MSG_TYPE_ERROR,
 			MsgBody: &ErrorBody{Message: err.Error()},
 		})
-		return
+		return false
 	}
 
 	roundState := g.State.GetRoundState()
@@ -179,7 +255,7 @@ func (g *Game) handleMove(idx int, msg Message) {
 	playedInfo := CardInfo{Suit: int32(card.GetSuit()), Rank: int32(card.GetRank()), Playable: false}
 	g.emit(-1, Message{
 		MsgType: MSG_TYPE_MOVE_MADE,
-		MsgBody: &MoveMadeBody{PlayerIdx: int32(idx), Card: playedInfo, RoundMoves: moveInfos},
+		MsgBody: &MoveMadeBody{PlayerIdx: int32(playerIdx), Card: playedInfo, RoundMoves: moveInfos, AutoPlay: autoPlay},
 	})
 
 	if g.pendingRoundEnd != nil {
@@ -189,6 +265,28 @@ func (g *Game) handleMove(idx int, msg Message) {
 		})
 		g.pendingRoundEnd = nil
 	}
+	return true
+}
+
+// handleTurnTimeout auto-plays the largest playable card for the player whose
+// turn this is. Re-checks status and active player defensively: the state can
+// only change through this goroutine, so a stale activeIdx here would indicate
+// a bug, not a race.
+func (g *Game) handleTurnTimeout(activeIdx int) {
+	g.StateMutex.Lock()
+	defer g.StateMutex.Unlock()
+	if g.State.GetStatus() != sm.StatusPlay {
+		return
+	}
+	ap := g.State.GetActivePlayer()
+	if ap == nil || ap.GetIndex()-1 != activeIdx {
+		return
+	}
+	chosen := sm.PickLargestPlayable(ap.GetHandCards())
+	if chosen < 0 {
+		return
+	}
+	g.playCard(activeIdx, chosen, true)
 }
 
 func (g *Game) broadcastGameOver() {
@@ -233,6 +331,7 @@ func (g *Game) emitYOUR_TURN(idx int) {
 			PlayableIndices: playableIndices,
 			RoundSeq:        rs.Seq,
 			RoundMoves:      g.buildCardInfos(rs.Moves),
+			TimeoutSeconds:  int(g.TurnTimeout / time.Second),
 		},
 	})
 }

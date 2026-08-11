@@ -127,6 +127,10 @@ func CreateRoom(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, "Invalid number of players"))
 		return
 	}
+	if err := gameserver.ValidateTurnTimeoutSec(req.TurnTimeoutSeconds); err != nil {
+		ctx.JSON(http.StatusBadRequest, NewErrorRes(COMMON_ERR_CODE, err.Error()))
+		return
+	}
 
 	host, err := gameserver.NewPlayer(req.Nickname)
 	if err != nil {
@@ -141,6 +145,7 @@ func CreateRoom(ctx *gin.Context) {
 	}
 
 	room := gameserver.NewRoom(u.String(), host, &sm.GameConfig{NumPlayers: req.NumPlayers})
+	room.TurnTimeoutSec = req.TurnTimeoutSeconds
 
 	ctx.JSON(200, NewSuccessRes(&JoinRoomRet{
 		RoomID:   room.ID,
@@ -149,8 +154,9 @@ func CreateRoom(ctx *gin.Context) {
 }
 
 type CreateRoomReq struct {
-	NumPlayers int32  `json:"num_players"`
-	Nickname   string `json:"nickname"`
+	NumPlayers         int32  `json:"num_players"`
+	Nickname           string `json:"nickname"`
+	TurnTimeoutSeconds int32  `json:"turn_timeout_seconds"`
 }
 
 type JoinRoomRet struct {

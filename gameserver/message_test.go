@@ -33,10 +33,11 @@ func TestYourTurnBodyJSON(t *testing.T) {
 		PlayableIndices: []int{0, 2, 5},
 		RoundSeq:        3,
 		RoundMoves:      []CardInfo{{Suit: 0, Rank: 4, Playable: false}},
+		TimeoutSeconds:  30,
 	}
 	b, err := json.Marshal(body)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"playable_indices":[0,2,5],"round_seq":3,"round_moves":[{"suit":0,"rank":4,"playable":false}]}`, string(b))
+	assert.JSONEq(t, `{"playable_indices":[0,2,5],"round_seq":3,"round_moves":[{"suit":0,"rank":4,"playable":false}],"timeout_seconds":30}`, string(b))
 }
 
 func TestRoundEndBodyJSON(t *testing.T) {
@@ -88,8 +89,9 @@ func TestMoveMadeBodyJSON(t *testing.T) {
 		PlayerIdx:  2,
 		Card:       CardInfo{Suit: 1, Rank: 8, Playable: false},
 		RoundMoves: []CardInfo{{Suit: 1, Rank: 8, Playable: false}, {Suit: 0, Rank: 3, Playable: false}},
+		AutoPlay:   true,
 	}
 	b, err := json.Marshal(body)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"player_idx":2,"card":{"suit":1,"rank":8,"playable":false},"round_moves":[{"suit":1,"rank":8,"playable":false},{"suit":0,"rank":3,"playable":false}]}`, string(b))
+	assert.JSONEq(t, `{"player_idx":2,"card":{"suit":1,"rank":8,"playable":false},"round_moves":[{"suit":1,"rank":8,"playable":false},{"suit":0,"rank":3,"playable":false}],"auto_play":true}`, string(b))
 }

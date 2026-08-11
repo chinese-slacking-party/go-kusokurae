@@ -63,3 +63,11 @@ func TestEventCh_BroadcastTarget(t *testing.T) {
 		t.Fatal("timeout waiting for broadcast event")
 	}
 }
+
+func TestValidateTurnTimeoutSec(t *testing.T) {
+	assert.NoError(t, ValidateTurnTimeoutSec(0))
+	assert.NoError(t, ValidateTurnTimeoutSec(5))
+	assert.NoError(t, ValidateTurnTimeoutSec(120))
+	assert.Error(t, ValidateTurnTimeoutSec(4))
+	assert.Error(t, ValidateTurnTimeoutSec(121))
+}

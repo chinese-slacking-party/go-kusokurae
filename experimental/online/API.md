@@ -52,7 +52,8 @@ POST /api/v1/room/new
 ```json
 {
   "num_players": 3,
-  "nickname": "小明"
+  "nickname": "小明",
+  "turn_timeout_seconds": 30
 }
 ```
 
@@ -60,6 +61,7 @@ POST /api/v1/room/new
 |------|------|------|------|
 | num_players | int | 是 | 玩家人数，仅支持 3 或 4 |
 | nickname | string | 是 | 玩家昵称，trim 后 1~20 个字符，仅允许可打印字符（中英文均可） |
+| turn_timeout_seconds | int | 否 | 每回合出牌时限（秒），范围 5~120；缺省/0 时默认 30 |
 
 **成功响应：**
 
@@ -272,6 +274,9 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 | playable_indices | int[] | 当前可出的手牌索引列表 |
 | round_seq | int | 当前轮次序号 |
 | round_moves | CardInfo[] | 本轮已出的牌 |
+| timeout_seconds | int | 本回合出牌时限（秒），超时未出牌将自动出最大可出牌 |
+
+> 出牌被拒绝（非法索引、规则不允许等）时，服务端会先发送 `ERROR`，随后**重新发送一份 `YOUR_TURN`**（同样的回合数据）供客户端重新出牌。重新下发**不会重置**出牌倒计时。
 
 ---
 
@@ -297,6 +302,7 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 | player_idx | int | 出牌玩家座位号 |
 | card | CardInfo | 打出的牌 |
 | round_moves | CardInfo[] | 本轮截至目前所有已出的牌 |
+| auto_play | bool | 是否为自动出牌（超时未出牌或断线时由服务端代打，选出最大可出牌） |
 
 ---
 
