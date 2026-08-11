@@ -76,6 +76,7 @@ type TurnTimeSyncBody struct {
 
 type MoveMadeBody struct {
 	PlayerIdx  int32      `json:"player_idx"`
+	CardIdx    int32      `json:"card_idx"`
 	Card       CardInfo   `json:"card"`
 	RoundMoves []CardInfo `json:"round_moves"`
 	AutoPlay   bool       `json:"auto_play"`

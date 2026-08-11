@@ -304,7 +304,7 @@ func (g *Game) playCard(playerIdx, cardIdx int, autoPlay bool) bool {
 	playedInfo := CardInfo{Suit: int32(card.GetSuit()), Rank: int32(card.GetRank()), Playable: false}
 	g.emit(-1, Message{
 		MsgType: MSG_TYPE_MOVE_MADE,
-		MsgBody: &MoveMadeBody{PlayerIdx: int32(playerIdx), Card: playedInfo, RoundMoves: moveInfos, AutoPlay: autoPlay},
+		MsgBody: &MoveMadeBody{PlayerIdx: int32(playerIdx), CardIdx: int32(cardIdx), Card: playedInfo, RoundMoves: moveInfos, AutoPlay: autoPlay},
 	})
 
 	if g.pendingRoundEnd != nil {

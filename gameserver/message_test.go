@@ -95,11 +95,12 @@ func TestPlayerJoinedBodyJSON(t *testing.T) {
 func TestMoveMadeBodyJSON(t *testing.T) {
 	body := MoveMadeBody{
 		PlayerIdx:  2,
+		CardIdx:    1,
 		Card:       CardInfo{Suit: 1, Rank: 8, Playable: false},
 		RoundMoves: []CardInfo{{Suit: 1, Rank: 8, Playable: false}, {Suit: 0, Rank: 3, Playable: false}},
 		AutoPlay:   true,
 	}
 	b, err := json.Marshal(body)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"player_idx":2,"card":{"suit":1,"rank":8,"playable":false},"round_moves":[{"suit":1,"rank":8,"playable":false},{"suit":0,"rank":3,"playable":false}],"auto_play":true}`, string(b))
+	assert.JSONEq(t, `{"player_idx":2,"card_idx":1,"card":{"suit":1,"rank":8,"playable":false},"round_moves":[{"suit":1,"rank":8,"playable":false},{"suit":0,"rank":3,"playable":false}],"auto_play":true}`, string(b))
 }

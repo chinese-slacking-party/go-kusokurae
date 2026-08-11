@@ -50,6 +50,8 @@ func TestGameFn_TurnTimeoutAutoPlay(t *testing.T) {
 	body, ok := ev.Msg.MsgBody.(*MoveMadeBody)
 	require.True(t, ok)
 	assert.True(t, body.AutoPlay, "timeout move should be flagged as auto-play")
+	// Auto-play must carry the hand index of the played card
+	assert.GreaterOrEqual(t, int(body.CardIdx), 0)
 }
 
 func TestGameFn_InvalidMoveResendsYourTurn(t *testing.T) {
@@ -157,4 +159,31 @@ func TestGameFn_TurnTimeSyncTicks(t *testing.T) {
 			t.Fatal("timeout: no TURN_TIME_SYNC received")
 		}
 	}
+}
+
+func TestGameFn_MoveMadeCarriesCardIdx(t *testing.T) {
+	g, cancel := newTestGame(t, 5*time.Second, 0)
+	defer cancel()
+
+	// Wait for YOUR_TURN, then play the highest-indexed playable card
+	ev := waitEvent(t, g, MSG_TYPE_YOUR_TURN)
+	yt, ok := ev.Msg.MsgBody.(*YourTurnBody)
+	require.True(t, ok)
+	require.NotEmpty(t, yt.PlayableIndices)
+	wantIdx := yt.PlayableIndices[0]
+	for _, i := range yt.PlayableIndices {
+		if i > wantIdx {
+			wantIdx = i
+		}
+	}
+
+	g.CmdCh <- GameCommand{
+		PlayerIdx: 0,
+		Msg:       Message{MsgType: MSG_TYPE_PLAY_CARD, MsgBody: map[string]interface{}{"card_index": float64(wantIdx)}},
+	}
+
+	ev = waitEvent(t, g, MSG_TYPE_MOVE_MADE)
+	mm, ok := ev.Msg.MsgBody.(*MoveMadeBody)
+	require.True(t, ok)
+	assert.Equal(t, int32(wantIdx), mm.CardIdx)
 }
