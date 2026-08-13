@@ -76,9 +76,10 @@ type Game struct {
 	TurnSyncInterval time.Duration
 	CmdCh            chan GameCommand
 	EventCh          chan GameEvent
-	GameOver         chan struct{}
+	GameEnd          chan struct{}
 	pendingRoundEnd  *RoundEndBody
 	turnDeadline     time.Time
+	panicHook        func()
 }
 
 func NewGame(config *sm.GameConfig, numPlayers int32) *Game {
@@ -92,7 +93,7 @@ func NewGame(config *sm.GameConfig, numPlayers int32) *Game {
 		NumPlayers: numPlayers,
 		CmdCh:      make(chan GameCommand),
 		EventCh:    make(chan GameEvent),
-		GameOver:   make(chan struct{}),
+		GameEnd:    make(chan struct{}),
 	}
 	return g
 }
@@ -112,7 +113,20 @@ func (g *Game) emit(target int, msg Message) {
 func (g *Game) GameFn(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	defer close(g.GameOver)
+	defer close(g.GameEnd)
+
+	// Recover from any panic during the game: notify all players with
+	// GAME_FATAL, then let the defers close GameEnd. Runs before close(GameEnd)
+	// so the room broadcasts the fatal before cleaning up.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Game %s panicked: %v", trunc8(g.ID), r)
+			g.emit(-1, Message{
+				MsgType: MSG_TYPE_GAME_FATAL,
+				MsgBody: &GameFatalBody{Message: fmt.Sprint(r)},
+			})
+		}
+	}()
 
 	var err error
 	g.StateMutex.Lock()
@@ -160,6 +174,9 @@ func (g *Game) GameFn(ctx context.Context) {
 		g.TurnSyncInterval = DefaultTurnSyncInterval
 	}
 	for g.State.GetStatus() == sm.StatusPlay {
+		if g.panicHook != nil {
+			g.panicHook()
+		}
 		activeIdx := int(g.State.GetActivePlayer().GetIndex() - 1)
 		g.turnDeadline = time.Now().Add(g.TurnTimeout)
 		g.emitYOUR_TURN(activeIdx)

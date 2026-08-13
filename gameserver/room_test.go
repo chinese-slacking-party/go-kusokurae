@@ -73,11 +73,11 @@ func TestRun_GameEventRoutesToPlayers(t *testing.T) {
 
 	// Manually wire game channels via internalCh to avoid data races
 	eventCh := make(chan GameEvent, 1)
-	gameOverCh := make(chan struct{})
+	gameEndCh := make(chan struct{})
 	done := make(chan struct{})
 	room.internalCh <- func() {
 		room.eventCh = eventCh
-		room.gameOverCh = gameOverCh
+		room.gameEndCh = gameEndCh
 		close(done)
 	}
 	<-done
@@ -112,13 +112,13 @@ func TestRun_GameOverClearsChannels(t *testing.T) {
 	done := make(chan struct{})
 	room.internalCh <- func() {
 		room.eventCh = make(chan GameEvent)
-		room.gameOverCh = make(chan struct{})
+		room.gameEndCh = make(chan struct{})
 		close(done)
 	}
 	<-done
 
-	// Signal game over
-	close(room.gameOverCh)
+	// Signal game end
+	close(room.gameEndCh)
 
 	// Kick run() to re-evaluate select
 	host.OperatorCh <- Message{MsgType: MSG_TYPE_PLAY_CARD}
@@ -127,19 +127,51 @@ func TestRun_GameOverClearsChannels(t *testing.T) {
 
 	// Read field values safely on the run() goroutine
 	var (
-		gotEventCh    chan GameEvent
-		gotGameOverCh chan struct{}
+		gotEventCh chan GameEvent
+		gotEndCh   chan struct{}
 	)
 	syncDone := make(chan struct{})
 	room.internalCh <- func() {
 		gotEventCh = room.eventCh
-		gotGameOverCh = room.gameOverCh
+		gotEndCh = room.gameEndCh
 		close(syncDone)
 	}
 	<-syncDone
 
 	assert.Nil(t, gotEventCh)
-	assert.Nil(t, gotGameOverCh)
+	assert.Nil(t, gotEndCh)
+}
+
+func TestRun_GameEndAllowsRestart(t *testing.T) {
+	InitRoomRepository()
+	host, _ := NewPlayer("host")
+	config := &sm.GameConfig{NumPlayers: 2}
+	room := NewRoom("test-room-restart", host, config)
+
+	// Simulate a game that ended: wire channels then close the end channel
+	done := make(chan struct{})
+	room.internalCh <- func() {
+		room.eventCh = make(chan GameEvent)
+		room.gameEndCh = make(chan struct{})
+		room.game.Store(NewGame(config, 2))
+		close(done)
+	}
+	<-done
+
+	close(room.gameEndCh)
+	host.OperatorCh <- Message{MsgType: MSG_TYPE_PLAY_CARD}
+	time.Sleep(50 * time.Millisecond)
+
+	// After handleGameEnd, r.game must be released so a new game can start
+	var gotGame *Game
+	readDone := make(chan struct{})
+	room.internalCh <- func() {
+		gotGame = room.game.Load()
+		close(readDone)
+	}
+	<-readDone
+
+	assert.Nil(t, gotGame)
 }
 
 func TestRun_DisconnectStaleEventIgnored(t *testing.T) {

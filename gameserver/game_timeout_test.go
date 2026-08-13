@@ -187,3 +187,28 @@ func TestGameFn_MoveMadeCarriesCardIdx(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, int32(wantIdx), mm.CardIdx)
 }
+
+func TestGameFn_PanicEmitsFatal(t *testing.T) {
+	cfg := &sm.GameConfig{NumPlayers: 3}
+	g := NewGame(cfg, 3)
+	g.panicHook = func() { panic("boom") }
+	var err error
+	g.State, err = sm.NewGame(*cfg, nil)
+	require.NoError(t, err)
+	require.NoError(t, g.State.Start())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.GameFn(ctx)
+
+	ev := waitEvent(t, g, MSG_TYPE_GAME_FATAL)
+	fb, ok := ev.Msg.MsgBody.(*GameFatalBody)
+	require.True(t, ok)
+	assert.Contains(t, fb.Message, "boom")
+	assert.Equal(t, -1, ev.Target, "GAME_FATAL must be broadcast")
+
+	select {
+	case <-g.GameEnd:
+	case <-time.After(2 * time.Second):
+		t.Fatal("GameEnd not closed after fatal")
+	}
+}

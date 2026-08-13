@@ -8,7 +8,7 @@ const MSG_TYPE_PLAY_CARD = "PLAY_CARD"
 const MSG_TYPE_SMS = "SMS"
 const MSG_TYPE_EVENT = "EVENT"
 const MSG_TYPE_ERROR = "ERROR"
-const MSG_TYPE_FATAL = "FATAL"
+const MSG_TYPE_GAME_FATAL = "GAME_FATAL"
 const MSG_TYPE_NOTICE = "NOTICE"
 const MSG_TYPE_ROOM_STATE = "ROOM_STATE"
 const MSG_TYPE_GAME_START = "GAME_START"
@@ -111,5 +111,9 @@ type PlayerLeftBody struct {
 }
 
 type ErrorBody struct {
+	Message string `json:"message"`
+}
+
+type GameFatalBody struct {
 	Message string `json:"message"`
 }

@@ -379,7 +379,28 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 
 ---
 
-### 4.9 错误消息 `ERROR`
+### 4.9 游戏异常终止 `GAME_FATAL`
+
+`GameFn` 内部发生异常（panic）时向**全体玩家广播**，通知结束游戏画面、回到房间画面。**仅异常路径发出**；正常结束发 `GAME_OVER`。
+
+```json
+{
+  "type": "GAME_FATAL",
+  "body": {
+    "message": "boom"
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| message | string | 异常信息（调试用） |
+
+> 收到 `GAME_FATAL` 后房间可重新 `START_GAME`（服务端已释放结束的游戏实例）。
+
+---
+
+### 4.10 错误消息 `ERROR`
 
 操作失败时单独发送给对应玩家。
 

@@ -92,6 +92,13 @@ func TestPlayerJoinedBodyJSON(t *testing.T) {
 	assert.JSONEq(t, `{"player_id":"abc","nickname":"小明","position":2}`, string(b))
 }
 
+func TestGameFatalBodyJSON(t *testing.T) {
+	msg := Message{MsgType: MSG_TYPE_GAME_FATAL, MsgBody: &GameFatalBody{Message: "boom"}}
+	b, err := json.Marshal(msg)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"type":"GAME_FATAL","body":{"message":"boom"}}`, string(b))
+}
+
 func TestMoveMadeBodyJSON(t *testing.T) {
 	body := MoveMadeBody{
 		PlayerIdx:  2,

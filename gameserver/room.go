@@ -32,10 +32,10 @@ type Room struct {
 	TurnSyncIntervalSec int32
 
 	// Slot arrays for run() select — nil means empty/inactive
-	opChs      [4]chan Message
-	discChs    [4]chan struct{}
-	eventCh    chan GameEvent
-	gameOverCh chan struct{}
+	opChs     [4]chan Message
+	discChs   [4]chan struct{}
+	eventCh   chan GameEvent
+	gameEndCh chan struct{}
 
 	// Internal command channel for thread-safe slot array writes
 	internalCh chan func()
@@ -194,7 +194,7 @@ func (r *Room) StartGame(requesterID string) error {
 
 	// Wire game channels into run() select
 	r.eventCh = g.EventCh
-	r.gameOverCh = g.GameOver
+	r.gameEndCh = g.GameEnd
 
 	go g.GameFn(context.Background())
 
@@ -240,7 +240,7 @@ func (r *Room) autoPlayCard(g *Game, idx int) {
 			MsgBody: &PlayCardBody{CardIndex: chosen},
 		},
 	}:
-	case <-g.GameOver:
+	case <-g.GameEnd:
 	}
 }
 
@@ -268,7 +268,7 @@ func (r *Room) handlePlayerMessage(idx int, msg Message) {
 				PlayerIdx: int(p.RoomPosition),
 				Msg:       msg,
 			}:
-			case <-g.GameOver:
+			case <-g.GameEnd:
 			case <-r.Ctx.Done():
 			}
 		}
@@ -331,9 +331,11 @@ func (r *Room) handleDisconnect(idx int) {
 	}
 }
 
-func (r *Room) handleGameOver() {
+func (r *Room) handleGameEnd() {
 	r.eventCh = nil
-	r.gameOverCh = nil
+	r.gameEndCh = nil
+	// Release the finished game so the room can start a new one.
+	r.game.Store(nil)
 }
 
 // UpdateDiscChannel updates the disconnect channel for a player seat.
@@ -365,8 +367,8 @@ func (r *Room) run() {
 			r.handleDisconnect(3)
 		case event := <-r.eventCh:
 			r.handleGameEvent(event)
-		case <-r.gameOverCh:
-			r.handleGameOver()
+		case <-r.gameEndCh:
+			r.handleGameEnd()
 		case fn := <-r.internalCh:
 			fn()
 		case <-r.Ctx.Done():
