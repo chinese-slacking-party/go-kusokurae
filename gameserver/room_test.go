@@ -31,7 +31,7 @@ func TestRun_RoutesPlayerMessage(t *testing.T) {
 	}
 }
 
-func TestRun_DisconnectHandlesAutoPlay(t *testing.T) {
+func TestRun_DisconnectClearsChannel(t *testing.T) {
 	InitRoomRepository()
 	host, _ := NewPlayer("host")
 	config := &sm.GameConfig{NumPlayers: 2}

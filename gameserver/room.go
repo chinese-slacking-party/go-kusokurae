@@ -233,31 +233,6 @@ func (r *Room) isPlayerConnected(p *Player) bool {
 	return p != nil && r.sessions[p.RoomPosition] != nil
 }
 
-func (r *Room) autoPlayCard(g *Game, idx int) {
-	// Pick the largest playable card from the current engine state.
-	g.StateMutex.Lock()
-	chosen := -1
-	if g.State != nil {
-		if p := g.State.GetPlayer(int32(idx)); p != nil {
-			chosen = sm.PickLargestPlayable(p.GetHandCards())
-		}
-	}
-	g.StateMutex.Unlock()
-	if chosen < 0 {
-		return
-	}
-	select {
-	case g.CmdCh <- GameCommand{
-		PlayerIdx: idx,
-		Msg: Message{
-			MsgType: MSG_TYPE_PLAY_CARD,
-			MsgBody: &PlayCardBody{CardIndex: chosen},
-		},
-	}:
-	case <-g.GameEnd:
-	}
-}
-
 func (r *Room) handlePlayerMessage(idx int, msg Message) {
 	p := r.Players[idx]
 	if p == nil {
@@ -340,11 +315,9 @@ func (r *Room) handleGameEvent(event GameEvent) {
 	switch event.Msg.MsgType {
 	case MSG_TYPE_YOUR_TURN:
 		idx := event.Target
-		if !r.isPlayerConnected(r.Players[idx]) {
-			if g := r.game.Load(); g != nil {
-				r.autoPlayCard(g, idx)
-			}
-		} else {
+		// Disconnected players are covered by the game-layer turn timeout
+		// auto-play; the room just drops the event for them (ADR-0004).
+		if r.isPlayerConnected(r.Players[idx]) {
 			r.sendToPlayer(r.Players[idx], event.Msg)
 		}
 
@@ -386,21 +359,6 @@ func (r *Room) handleDisconnect(idx int) {
 	r.discChs[idx] = nil
 	r.sessions[idx] = nil
 	r.resyncPending[idx] = false
-
-	// Auto-play immediately if it's this disconnected player's turn
-	if g := r.game.Load(); g != nil {
-		g.StateMutex.Lock()
-		isTurn := false
-		if g.State != nil {
-			if ap := g.State.GetActivePlayer(); ap != nil {
-				isTurn = ap.GetIndex()-1 == idx
-			}
-		}
-		g.StateMutex.Unlock()
-		if isTurn {
-			r.autoPlayCard(g, idx)
-		}
-	}
 }
 
 func (r *Room) handleGameEnd() {

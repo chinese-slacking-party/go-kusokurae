@@ -319,7 +319,7 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 | card_idx | int | 所出牌在出牌人手牌中的位置（与 `YOUR_TURN.playable_indices` 同坐标系，仅出牌瞬间有效，出牌后索引会左移） |
 | card | CardInfo | 打出的牌 |
 | round_moves | CardInfo[] | 本轮截至目前所有已出的牌 |
-| auto_play | bool | 是否为自动出牌（超时未出牌或断线时由服务端代打，选出最大可出牌） |
+| auto_play | bool | 是否为自动出牌（超时未出牌时由服务端代打，选出最大可出牌） |
 
 ---
 
