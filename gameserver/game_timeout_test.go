@@ -237,3 +237,27 @@ func TestGameFn_ResyncEmitsGameState(t *testing.T) {
 	assert.Greater(t, body.RemainingSeconds, 0)
 	assert.Equal(t, 0, ev.Target, "game resync event targets the requesting player")
 }
+
+func TestGameFn_AbortWhileBlockedOnEmit(t *testing.T) {
+	cfg := &sm.GameConfig{NumPlayers: 3}
+	g := NewGame(cfg, 3)
+	var err error
+	g.State, err = sm.NewGame(*cfg, nil)
+	require.NoError(t, err)
+	require.NoError(t, g.State.Start())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go g.GameFn(ctx)
+
+	// Nobody reads EventCh, so GameFn blocks on its first emit (GAME_START).
+	time.Sleep(50 * time.Millisecond)
+
+	g.Abort()
+
+	select {
+	case <-g.GameEnd:
+		// GameFn must exit even while blocked on an EventCh send.
+	case <-time.After(2 * time.Second):
+		t.Fatal("GameFn did not exit after Abort while blocked on emit")
+	}
+}

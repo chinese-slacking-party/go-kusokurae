@@ -41,6 +41,7 @@ type Room struct {
 	// Current session per seat; owned exclusively by run() goroutine.
 	sessions      [4]*Session
 	resyncPending [4]bool
+	destroyOnce   sync.Once
 
 	// Internal command channel for thread-safe slot array writes
 	internalCh chan func()
@@ -210,7 +211,7 @@ func (r *Room) StartGame(requesterID string) error {
 	r.eventCh = g.EventCh
 	r.gameEndCh = g.GameEnd
 
-	go g.GameFn(context.Background())
+	go g.GameFn(r.Ctx)
 
 	return nil
 }
@@ -264,6 +265,15 @@ func (r *Room) handlePlayerMessage(idx int, msg Message) {
 
 	case MSG_TYPE_RESYNC_STATE:
 		r.handleResyncState(int(p.RoomPosition))
+
+	case MSG_TYPE_LEAVE_ROOM:
+		if int(p.RoomPosition) == int(r.HostPlayerIdx) {
+			r.Destroy("host_left")
+		} else if s := r.sessions[p.RoomPosition]; s != nil {
+			// Non-host leave: equivalent to disconnecting this player.
+			s.Detach()
+			s.Close()
+		}
 	}
 }
 
@@ -356,9 +366,20 @@ func (r *Room) handleDisconnect(idx int) {
 	// Nil out the fired channel immediately to prevent tight loop.
 	// A closed channel fires on every select iteration, so we must
 	// remove it before any early-return path.
+	s := r.sessions[idx]
 	r.discChs[idx] = nil
 	r.sessions[idx] = nil
 	r.resyncPending[idx] = false
+	// Stop the detached session's remaining goroutines (e.g. Output blocked
+	// on NoticeCh would otherwise leak forever).
+	if s != nil {
+		s.Close()
+	}
+
+	// The host owns the room: its departure destroys it.
+	if idx == int(r.HostPlayerIdx) {
+		r.Destroy("host_left")
+	}
 }
 
 func (r *Room) handleGameEnd() {
@@ -366,6 +387,70 @@ func (r *Room) handleGameEnd() {
 	r.gameEndCh = nil
 	// Release the finished game so the room can start a new one.
 	r.game.Store(nil)
+}
+
+// Destroy tears the room down: removes it from the repository, terminates any
+// running game, notifies the other players, stops the room goroutine, closes
+// the game's channels, disconnects all sessions and closes player channels.
+// Idempotent (sync.Once). Must be called from the run() goroutine: it keeps
+// run() alive to drain EventCh while the game goroutine exits.
+func (r *Room) Destroy(reason string) {
+	r.destroyOnce.Do(func() {
+		log.Printf("Room %s destroying: %s\n", trunc8(r.ID), reason)
+
+		// 1. Remove from the repository.
+		roomRepositoryMu.Lock()
+		delete(roomRepository, r.ID)
+		roomRepositoryMu.Unlock()
+
+		// 2. Terminate the game first. run() is still alive here and drains
+		//    EventCh, so GameFn exits even if blocked on an emit (Abort).
+		if g := r.game.Load(); g != nil {
+			g.Abort()
+			<-g.GameEnd
+		}
+
+		// 3. Best-effort notify the other players before disconnecting them.
+		for i := int32(0); i < int32(len(r.Players)); i++ {
+			if i != r.HostPlayerIdx && r.sessions[i] != nil {
+				msg := Message{
+					MsgType: MSG_TYPE_ROOM_CLOSED,
+					MsgBody: &RoomClosedBody{Reason: reason},
+				}
+				select {
+				case r.Players[i].NoticeCh <- msg:
+				default:
+					// No reader (slow/dead session): drop, teardown must not stall.
+				}
+			}
+		}
+
+		// 4. Stop the room goroutine.
+		r.cancel()
+
+		// 5. Close game channels (GameFn is gone; no senders left).
+		if g := r.game.Load(); g != nil {
+			close(g.CmdCh)
+			close(g.EventCh)
+		}
+
+		// 6. Disconnect remaining sessions (Close cancels their ctx so I/O
+		//    goroutines exit; the room is not reading OperatorCh any more, so
+		//    Input selects ctx.Done rather than a closed-channel send).
+		for i := range r.sessions {
+			if s := r.sessions[i]; s != nil {
+				s.Close()
+			}
+		}
+
+		// 7. Close player channels.
+		for _, p := range r.Players {
+			if p != nil {
+				close(p.NoticeCh)
+				close(p.OperatorCh)
+			}
+		}
+	})
 }
 
 // AttachSession registers the current session for a seat and returns the
@@ -385,6 +470,11 @@ func (r *Room) AttachSession(idx int32, s *Session) *Session {
 
 func (r *Room) run() {
 	for {
+		// After Destroy cancels the room context, stop before processing any
+		// more messages (their channels may already be closed).
+		if r.Ctx.Err() != nil {
+			return
+		}
 		select {
 		case msg := <-r.opChs[0]:
 			r.handlePlayerMessage(0, msg)

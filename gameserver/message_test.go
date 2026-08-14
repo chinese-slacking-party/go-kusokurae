@@ -146,3 +146,10 @@ func TestResyncStateBodyJSON_WithGame(t *testing.T) {
 	assert.NoError(t, err)
 	assert.JSONEq(t, `{"room":{"players":[{"player_id":"abc","nickname":"小明","position":0,"is_host":true}],"host_idx":0,"game":{"status":2,"hand_cards":[{"suit":0,"rank":5,"playable":true}],"round_seq":1,"round_moves":[{"suit":1,"rank":8,"playable":false}],"scores":[{"player_idx":0,"score":2},{"player_idx":1,"score":0}],"active_player_idx":0,"playable_indices":[0,1],"remaining_seconds":28}}}`, string(b))
 }
+
+func TestRoomClosedBodyJSON(t *testing.T) {
+	msg := Message{MsgType: MSG_TYPE_ROOM_CLOSED, MsgBody: &RoomClosedBody{Reason: "host_left"}}
+	b, err := json.Marshal(msg)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"type":"ROOM_CLOSED","body":{"reason":"host_left"}}`, string(b))
+}

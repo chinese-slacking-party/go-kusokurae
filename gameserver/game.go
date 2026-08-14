@@ -77,6 +77,8 @@ type Game struct {
 	CmdCh            chan GameCommand
 	EventCh          chan GameEvent
 	GameEnd          chan struct{}
+	abortCh          chan struct{}
+	abortOnce        sync.Once
 	pendingRoundEnd  *RoundEndBody
 	turnDeadline     time.Time
 	panicHook        func()
@@ -94,6 +96,7 @@ func NewGame(config *sm.GameConfig, numPlayers int32) *Game {
 		CmdCh:      make(chan GameCommand),
 		EventCh:    make(chan GameEvent),
 		GameEnd:    make(chan struct{}),
+		abortCh:    make(chan struct{}),
 	}
 	return g
 }
@@ -105,9 +108,23 @@ func trunc8(s string) string {
 	return s
 }
 
-func (g *Game) emit(target int, msg Message) {
-	g.EventCh <- GameEvent{Target: target, Msg: msg}
-	log.Printf("Game %s emit %s msg to %v\n", trunc8(g.ID), msg.MsgType, target)
+func (g *Game) emit(target int, msg Message) bool {
+	select {
+	case g.EventCh <- GameEvent{Target: target, Msg: msg}:
+		log.Printf("Game %s emit %s msg to %v\n", trunc8(g.ID), msg.MsgType, target)
+		return true
+	case <-g.abortCh:
+		// Game is being destroyed; drop the event.
+		return false
+	}
+}
+
+// Abort signals the game goroutine to stop promptly, even if it is blocked on
+// an EventCh emit. Safe to call multiple times.
+func (g *Game) Abort() {
+	g.abortOnce.Do(func() {
+		close(g.abortCh)
+	})
 }
 
 func (g *Game) GameFn(ctx context.Context) {
@@ -209,6 +226,8 @@ func (g *Game) waitForMove(ctx context.Context, activeIdx int, deadline time.Tim
 			return true
 		case <-ticker.C:
 			g.emitTurnTimeSync(activeIdx, time.Until(deadline))
+		case <-g.abortCh:
+			return false
 		case <-ctx.Done():
 			return false
 		}

@@ -195,6 +195,18 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 
 ---
 
+### 3.4 离开房间 `LEAVE_ROOM`
+
+无 body。**房主**发送则销毁整个房间（终止进行中的游戏、断开所有玩家）；**非房主**发送则仅断开自己（座位保留，等同断线）。
+
+```json
+{
+  "type": "LEAVE_ROOM"
+}
+```
+
+---
+
 ## 四、服务端 → 客户端消息
 
 ### 4.1 房间状态 `ROOM_STATE`
@@ -456,7 +468,28 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 
 ---
 
-### 4.11 错误消息 `ERROR`
+### 4.11 房间关闭 `ROOM_CLOSED`
+
+房主离开（掉线或发送 `LEAVE_ROOM`）导致房间销毁时，向**其他在线玩家**广播（尽力而为），随后断开所有连接。
+
+```json
+{
+  "type": "ROOM_CLOSED",
+  "body": {
+    "reason": "host_left"
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| reason | string | 关闭原因（当前仅 `host_left`） |
+
+> 收到后客户端应结束当前画面回到大厅；服务端随即关闭连接。房间从服务端仓库移除，后续查询返回 not found。
+
+---
+
+### 4.12 错误消息 `ERROR`
 
 操作失败时单独发送给对应玩家。
 

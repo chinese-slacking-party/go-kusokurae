@@ -19,6 +19,8 @@ const MSG_TYPE_GAME_OVER = "GAME_OVER"
 const MSG_TYPE_TURN_TIME_SYNC = "TURN_TIME_SYNC"
 const MSG_TYPE_RESYNC_STATE = "RESYNC_STATE"
 const MSG_TYPE_GAME_RESYNC = "GAME_RESYNC"
+const MSG_TYPE_LEAVE_ROOM = "LEAVE_ROOM"
+const MSG_TYPE_ROOM_CLOSED = "ROOM_CLOSED"
 const MSG_TYPE_PLAYER_JOINED = "PLAYER_JOINED"
 const MSG_TYPE_PLAYER_LEFT = "PLAYER_LEFT"
 
@@ -142,4 +144,8 @@ type ErrorBody struct {
 
 type GameFatalBody struct {
 	Message string `json:"message"`
+}
+
+type RoomClosedBody struct {
+	Reason string `json:"reason"`
 }

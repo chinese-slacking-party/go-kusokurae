@@ -239,3 +239,114 @@ func TestRoom_StartPlayerRotation(t *testing.T) {
 	assert.Equal(t, int32(2), room.startPlayerForNextGame())
 	assert.Equal(t, int32(0), room.startPlayerForNextGame(), "rotation wraps after 3 games")
 }
+
+func waitRoomGone(t *testing.T, room *Room) {
+	deadline := time.After(2 * time.Second)
+	for {
+		if _, err := GetRoomByID(room.ID); err == ErrRoomNotFound {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("room was not destroyed")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func TestRoom_DestroyOnHostDisconnect(t *testing.T) {
+	InitRoomRepository()
+	host, _ := NewPlayer("host")
+	p2, _ := NewPlayer("p2")
+	config := &sm.GameConfig{NumPlayers: 2}
+	room := NewRoom("test-room-destroy-dc", host, config)
+	require.NoError(t, room.AddPlayer(p2))
+	sHost := NewSession(nil, host)
+	sP2 := NewSession(nil, p2)
+	room.AttachSession(0, sHost)
+	room.AttachSession(1, sP2)
+
+	// Drain p2's notices so ROOM_CLOSED delivery doesn't block teardown
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		for range p2.NoticeCh {
+		}
+	}()
+
+	sHost.Detach() // host disconnects
+	waitRoomGone(t, room)
+
+	// Player channels must be closed
+	select {
+	case _, ok := <-host.NoticeCh:
+		assert.False(t, ok, "host.NoticeCh must be closed")
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("host.NoticeCh not closed")
+	}
+	<-closed
+}
+
+func TestRoom_DestroySendsRoomClosed(t *testing.T) {
+	InitRoomRepository()
+	host, _ := NewPlayer("host")
+	p2, _ := NewPlayer("p2")
+	config := &sm.GameConfig{NumPlayers: 2}
+	room := NewRoom("test-room-destroy-notify", host, config)
+	require.NoError(t, room.AddPlayer(p2))
+	sHost := NewSession(nil, host)
+	room.AttachSession(0, sHost)
+	room.AttachSession(1, NewSession(nil, p2))
+
+	// p2 must receive ROOM_CLOSED before being disconnected
+	go func() {
+		for msg := range p2.NoticeCh {
+			if msg.MsgType == MSG_TYPE_ROOM_CLOSED {
+				body, ok := msg.MsgBody.(*RoomClosedBody)
+				assert.True(t, ok)
+				assert.Equal(t, "host_left", body.Reason)
+			}
+		}
+	}()
+
+	sHost.Detach()
+	waitRoomGone(t, room)
+}
+
+func TestRoom_LeaveRoomByHost(t *testing.T) {
+	InitRoomRepository()
+	host, _ := NewPlayer("host")
+	config := &sm.GameConfig{NumPlayers: 2}
+	room := NewRoom("test-room-destroy-leave", host, config)
+	room.AttachSession(0, NewSession(nil, host))
+
+	host.OperatorCh <- Message{MsgType: MSG_TYPE_LEAVE_ROOM}
+	waitRoomGone(t, room)
+}
+
+func TestRoom_LeaveRoomByNonHost(t *testing.T) {
+	InitRoomRepository()
+	host, _ := NewPlayer("host")
+	p2, _ := NewPlayer("p2")
+	config := &sm.GameConfig{NumPlayers: 2}
+	room := NewRoom("test-room-leave-p2", host, config)
+	require.NoError(t, room.AddPlayer(p2))
+	sP2 := NewSession(nil, p2)
+	room.AttachSession(1, sP2)
+
+	p2.OperatorCh <- Message{MsgType: MSG_TYPE_LEAVE_ROOM}
+	time.Sleep(50 * time.Millisecond)
+
+	// Room survives; p2's seat is disconnected
+	_, err := GetRoomByID(room.ID)
+	assert.NoError(t, err)
+	var gotSession *Session
+	done := make(chan struct{})
+	room.internalCh <- func() {
+		gotSession = room.sessions[1]
+		close(done)
+	}
+	<-done
+	assert.Nil(t, gotSession, "non-host leave must clear the seat session")
+}
