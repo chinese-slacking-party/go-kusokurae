@@ -2,6 +2,7 @@ package gameserver
 
 import (
 	"context"
+	"log"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -74,12 +75,14 @@ func (s *Session) Input() {
 	var msg Message
 	for {
 		if err := s.Conn.ReadJSON(&msg); err != nil {
+			log.Printf("Player %s read msg error %s\n", s.Player.ID[:8], err.Error())
 			s.detach()
 			return
 		}
 		select {
 		case s.Player.OperatorCh <- msg:
 		case <-s.ctx.Done():
+			s.detach()
 			return
 		}
 	}
@@ -94,10 +97,10 @@ func (s *Session) Output() {
 		select {
 		case msg := <-s.Player.NoticeCh:
 			if err := s.Conn.WriteJSON(&msg); err != nil {
-				s.detach()
-				return
+				log.Printf("Player %s send msg error %s\n", s.Player.ID, err.Error())
 			}
 		case <-s.ctx.Done():
+			s.detach()
 			return
 		}
 	}
