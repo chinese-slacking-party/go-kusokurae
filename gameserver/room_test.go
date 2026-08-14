@@ -6,14 +6,16 @@ import (
 
 	"github.com/bs-iron-trio/go-kusokurae/sm"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRun_RoutesPlayerMessage(t *testing.T) {
 	InitRoomRepository()
 	host, _ := NewPlayer("host")
-	host.Session = &Session{} // needed so sendToPlayer doesn't skip
 	config := &sm.GameConfig{NumPlayers: 3}
-	_ = NewRoom("test-room", host, config)
+	room := NewRoom("test-room", host, config)
+	// Attach a session so sendToPlayer delivers (conn is nil; not used here)
+	room.AttachSession(0, NewSession(nil, host))
 
 	// Send START_GAME — should fail (not enough players) and send error to NoticeCh
 	host.OperatorCh <- Message{MsgType: MSG_TYPE_START_GAME}
@@ -41,20 +43,19 @@ func TestRun_DisconnectHandlesAutoPlay(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Set up state on run() goroutine to avoid data races
+	room.AttachSession(1, NewSession(nil, p2))
 	done := make(chan struct{})
 	room.internalCh <- func() {
-		close(p2.Disconnected)
-		p2.Session = nil
 		close(done)
 	}
 	<-done
 
-	// run() should pick up the closed discChs[1] and call handleDisconnect
-	// Since there's no active game, it should just nil out discChs[1]
+	// Detach p2's session: run() picks up the closed discChs[1]
+	room.sessions[1].Detach()
 	time.Sleep(50 * time.Millisecond)
 
 	// Read discChs[1] safely on the run() goroutine
-	var discChs1 chan struct{}
+	var discChs1 <-chan struct{}
 	readDone := make(chan struct{})
 	room.internalCh <- func() {
 		discChs1 = room.discChs[1]
@@ -180,35 +181,55 @@ func TestRun_DisconnectStaleEventIgnored(t *testing.T) {
 	config := &sm.GameConfig{NumPlayers: 2}
 	room := NewRoom("test-room-stale", host, config)
 
-	// Simulate reconnect: new session exists, but old Disconnected fires
-	oldCh := make(chan struct{})
+	// Simulate reconnect: session s1 is replaced by s2, then s1 detaches late
+	s1 := NewSession(nil, host)
+	room.AttachSession(0, s1)
+	s2 := NewSession(nil, host)
+	old := room.AttachSession(0, s2)
+	assert.Equal(t, s1, old, "AttachSession returns the replaced session")
 
-	// Set discChs[0] and Session on run() goroutine to avoid data races
-	done := make(chan struct{})
-	room.internalCh <- func() {
-		room.discChs[0] = oldCh
-		host.Session = &Session{}
-		close(done)
-	}
-	<-done
-
-	close(oldCh) // old channel fires
-
-	// Kick run() to re-evaluate select
-	host.OperatorCh <- Message{MsgType: MSG_TYPE_PLAY_CARD}
-
+	// Stale session detaches: its channel is no longer in the select, so the
+	// room must keep the current session intact.
+	s1.Detach()
+	host.OperatorCh <- Message{MsgType: MSG_TYPE_PLAY_CARD} // kick the select
 	time.Sleep(50 * time.Millisecond)
 
-	// discChs[0] should be nil'd (to prevent tight loop on closed channel)
-	var discChs0 chan struct{}
+	var gotSession *Session
+	var gotDiscCh <-chan struct{}
 	readDone := make(chan struct{})
 	room.internalCh <- func() {
-		discChs0 = room.discChs[0]
+		gotSession = room.sessions[0]
+		gotDiscCh = room.discChs[0]
 		close(readDone)
 	}
 	<-readDone
 
-	assert.Nil(t, discChs0)
+	assert.Equal(t, s2, gotSession, "stale detach must not clear the current session")
+	assert.NotNil(t, gotDiscCh, "current session's disc channel must remain selected")
+}
+
+func TestRun_ResyncStateNoGame(t *testing.T) {
+	InitRoomRepository()
+	host, _ := NewPlayer("host")
+	config := &sm.GameConfig{NumPlayers: 3}
+	room := NewRoom("test-room-resync", host, config)
+	room.AttachSession(0, NewSession(nil, host))
+
+	// Player requests state while no game is running: reply with game:null
+	host.OperatorCh <- Message{MsgType: MSG_TYPE_RESYNC_STATE}
+
+	select {
+	case msg := <-host.NoticeCh:
+		assert.Equal(t, MSG_TYPE_RESYNC_STATE, msg.MsgType)
+		body, ok := msg.MsgBody.(*ResyncStateBody)
+		require.True(t, ok)
+		assert.Nil(t, body.Room.Game, "game must be null when no game is in progress")
+		assert.Equal(t, int32(0), body.Room.HostIdx)
+		assert.Len(t, body.Room.Players, 1)
+		assert.Equal(t, host.ID, body.Room.Players[0].PlayerID)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for RESYNC_STATE reply")
+	}
 }
 
 func TestRoom_StartPlayerRotation(t *testing.T) {

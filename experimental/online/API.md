@@ -130,9 +130,9 @@ POST /api/v1/room/join?room_id={room_id}
 GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 ```
 
-连接成功后，客户端与服务端通过 JSON 消息双向通信。**连接建立后服务端会先向该玩家单独发送当前 `ROOM_STATE`**（含所有已入座玩家及 nickname），客户端以此建立玩家名单。
+连接成功后，客户端与服务端通过 JSON 消息双向通信。**连接后服务端零推送**——客户端主动发送 `RESYNC_STATE` 拉取当前房间与游戏状态（见 3.3 / 4.10），服务端返回房间名单（嵌套游戏状态）。
 
-**断线重连：** 使用相同的 URL 重新建立 WebSocket 连接即可。服务端会关闭旧连接、复用已有 Player 状态（昵称不变）。如果游戏进行中且轮到该玩家，会立即收到 `YOUR_TURN` 消息恢复状态。注意：开局后连入的玩家**不会**收到手牌补发（`GAME_START`），只能等下一手 `MOVE_MADE` 广播。
+**断线重连：** 使用相同的 URL 重新建立 WebSocket 连接即可。服务端复用已有 Player 状态（昵称不变），旧连接自动关闭；连接后同样发送 `RESYNC_STATE` 恢复牌局（含手牌、轮次、分数、行动权与倒计时）。
 
 ---
 
@@ -178,6 +178,20 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 - `not your turn` — 不是你的回合
 - `card index out of range` — 手牌索引越界
 - `KUSOKURAE_ERROR_FORBIDDEN_MOVE` — 规则不允许出此牌
+
+---
+
+### 3.3 状态同步 `RESYNC_STATE`
+
+连接建立后（含断线重连）发送，拉取当前房间与游戏状态。无 body。
+
+```json
+{
+  "type": "RESYNC_STATE"
+}
+```
+
+服务端回复一份 `RESYNC_STATE`（见 4.10），客户端以此建立房间名单并（若游戏中）恢复牌局。
 
 ---
 
@@ -400,7 +414,49 @@ GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
 
 ---
 
-### 4.10 错误消息 `ERROR`
+### 4.10 状态同步响应 `RESYNC_STATE`
+
+响应客户端的 `RESYNC_STATE` 请求（见 3.3）。**`game` 嵌套在 `room` 内**，游戏未开始/已结束时为 `null`。
+
+```json
+{
+  "type": "RESYNC_STATE",
+  "body": {
+    "room": {
+      "players": [
+        { "player_id": "a1b2...", "nickname": "小明", "position": 0, "is_host": true }
+      ],
+      "host_idx": 0,
+      "game": null
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| room.players | RoomPlayerInfo[] | 房间名单（同 ROOM_STATE） |
+| room.host_idx | int | 房主座位号 |
+| room.game | object\|null | 游戏状态快照，未开始时为 null |
+
+游戏中 `room.game` 结构：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| game.status | int | 游戏状态（2=游戏中） |
+| game.hand_cards | CardInfo[] | **请求玩家**的当前手牌（断线重连后以此恢复） |
+| game.round_seq | int | 当前轮次序号 |
+| game.round_moves | CardInfo[] | 本轮已出的牌 |
+| game.scores | {player_idx, score}[] | 各玩家累计分数 |
+| game.active_player_idx | int | 当前行动玩家座位号 |
+| game.playable_indices | int[] | 若轮到请求玩家：可出牌索引列表 |
+| game.remaining_seconds | int | 若轮到请求玩家：本回合剩余秒数 |
+
+> 快照反映服务端处理时刻的状态，可能晚于请求后到达的新事件；客户端以快照为准，随后的事件（`MOVE_MADE`/`YOUR_TURN`）纠正。
+
+---
+
+### 4.11 错误消息 `ERROR`
 
 操作失败时单独发送给对应玩家。
 

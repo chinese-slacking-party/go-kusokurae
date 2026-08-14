@@ -34,9 +34,13 @@ type Room struct {
 
 	// Slot arrays for run() select — nil means empty/inactive
 	opChs     [4]chan Message
-	discChs   [4]chan struct{}
+	discChs   [4]<-chan struct{}
 	eventCh   chan GameEvent
 	gameEndCh chan struct{}
+
+	// Current session per seat; owned exclusively by run() goroutine.
+	sessions      [4]*Session
+	resyncPending [4]bool
 
 	// Internal command channel for thread-safe slot array writes
 	internalCh chan func()
@@ -79,7 +83,6 @@ func NewRoom(id string, host *Player, config *sm.GameConfig) *Room {
 
 	// Wire host's channels into slot 0
 	r.opChs[0] = host.OperatorCh
-	r.discChs[0] = host.Disconnected
 
 	// Single goroutine for all message routing
 	go r.run()
@@ -110,7 +113,6 @@ func (r *Room) addPlayerInternal(player *Player) error {
 
 	// Wire player's channels into the slot for run() select
 	r.opChs[position] = player.OperatorCh
-	r.discChs[position] = player.Disconnected
 
 	r.Broadcast(Message{
 		MsgType: MSG_TYPE_PLAYER_JOINED,
@@ -214,7 +216,7 @@ func (r *Room) StartGame(requesterID string) error {
 }
 
 func (r *Room) sendToPlayer(p *Player, msg Message) {
-	if p == nil || p.Session == nil {
+	if p == nil || r.sessions[p.RoomPosition] == nil {
 		return
 	}
 	p.NoticeCh <- msg
@@ -228,7 +230,7 @@ func (r *Room) broadcastToPlayers(players []*Player, msg Message) {
 }
 
 func (r *Room) isPlayerConnected(p *Player) bool {
-	return p != nil && p.Session != nil
+	return p != nil && r.sessions[p.RoomPosition] != nil
 }
 
 func (r *Room) autoPlayCard(g *Game, idx int) {
@@ -284,7 +286,49 @@ func (r *Room) handlePlayerMessage(idx int, msg Message) {
 			case <-r.Ctx.Done():
 			}
 		}
+
+	case MSG_TYPE_RESYNC_STATE:
+		r.handleResyncState(int(p.RoomPosition))
 	}
+}
+
+// handleResyncState serves a RESYNC_STATE request: marks the seat as awaiting
+// its game snapshot and either queues the request to the game goroutine or
+// replies immediately when no game is in progress.
+func (r *Room) handleResyncState(idx int) {
+	p := r.Players[idx]
+	if p == nil {
+		return
+	}
+	r.resyncPending[idx] = true
+	if g := r.game.Load(); g != nil {
+		select {
+		case g.ResyncCh <- int32(idx):
+		default:
+			// Game cannot accept the request right now: reply without game part.
+			r.sendResyncState(p, nil)
+		}
+		return
+	}
+	r.sendResyncState(p, nil)
+}
+
+// sendResyncState sends the composite RESYNC_STATE reply (room part always,
+// game part when provided) to the player and clears the pending flag.
+func (r *Room) sendResyncState(p *Player, game *GameResyncBody) {
+	r.resyncPending[p.RoomPosition] = false
+	roomMsg := r.buildRoomStateMessage()
+	roomBody := roomMsg.MsgBody.(*RoomStateBody)
+	r.sendToPlayer(p, Message{
+		MsgType: MSG_TYPE_RESYNC_STATE,
+		MsgBody: &ResyncStateBody{
+			Room: RoomResyncBody{
+				Players: roomBody.Players,
+				HostIdx: roomBody.HostIdx,
+				Game:    game,
+			},
+		},
+	})
 }
 
 func (r *Room) handleGameEvent(event GameEvent) {
@@ -298,6 +342,21 @@ func (r *Room) handleGameEvent(event GameEvent) {
 		} else {
 			r.sendToPlayer(r.Players[idx], event.Msg)
 		}
+
+	case MSG_TYPE_GAME_RESYNC:
+		idx := event.Target
+		if idx < 0 || idx >= len(r.Players) || !r.resyncPending[idx] {
+			return
+		}
+		p := r.Players[idx]
+		if p == nil {
+			return
+		}
+		body, ok := event.Msg.MsgBody.(*GameResyncBody)
+		if !ok {
+			return
+		}
+		r.sendResyncState(p, body)
 
 	default:
 		if event.Target == -1 {
@@ -320,12 +379,8 @@ func (r *Room) handleDisconnect(idx int) {
 	// A closed channel fires on every select iteration, so we must
 	// remove it before any early-return path.
 	r.discChs[idx] = nil
-
-	// Stale close event from a replaced Disconnected channel (player reconnected).
-	// UpdateDiscChannel will set the new channel after this returns.
-	if p.Session != nil {
-		return
-	}
+	r.sessions[idx] = nil
+	r.resyncPending[idx] = false
 
 	// Auto-play immediately if it's this disconnected player's turn
 	if g := r.game.Load(); g != nil {
@@ -350,12 +405,19 @@ func (r *Room) handleGameEnd() {
 	r.game.Store(nil)
 }
 
-// UpdateDiscChannel updates the disconnect channel for a player seat.
-// Called from the HTTP handler on reconnect after replacing player.Disconnected.
-func (r *Room) UpdateDiscChannel(idx int, ch chan struct{}) {
+// AttachSession registers the current session for a seat and returns the
+// previous session (if any). Serialized through the room goroutine so the
+// connection state is owned solely by run(). The room selects on the current
+// session's DiscCh only, so a stale session's detach is naturally ignored.
+func (r *Room) AttachSession(idx int32, s *Session) *Session {
+	result := make(chan *Session, 1)
 	r.internalCh <- func() {
-		r.discChs[idx] = ch
+		old := r.sessions[idx]
+		r.sessions[idx] = s
+		r.discChs[idx] = s.DiscCh()
+		result <- old
 	}
+	return <-result
 }
 
 func (r *Room) run() {

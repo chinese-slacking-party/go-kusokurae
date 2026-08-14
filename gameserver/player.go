@@ -24,8 +24,6 @@ type Player struct {
 	RoomPosition int32
 	NoticeCh     chan Message
 	OperatorCh   chan Message
-	Disconnected chan struct{}
-	Session      *Session
 }
 
 // ValidateNickname checks a raw nickname input: non-empty after trim,
@@ -62,7 +60,6 @@ func NewPlayer(nickname string) (*Player, error) {
 		RoomPosition: -1,
 		NoticeCh:     make(chan Message),
 		OperatorCh:   make(chan Message),
-		Disconnected: make(chan struct{}),
 	}, nil
 }
 

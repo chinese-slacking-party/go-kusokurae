@@ -77,6 +77,7 @@ type Game struct {
 	CmdCh            chan GameCommand
 	EventCh          chan GameEvent
 	GameEnd          chan struct{}
+	ResyncCh         chan int32
 	pendingRoundEnd  *RoundEndBody
 	turnDeadline     time.Time
 	panicHook        func()
@@ -94,6 +95,7 @@ func NewGame(config *sm.GameConfig, numPlayers int32) *Game {
 		CmdCh:      make(chan GameCommand),
 		EventCh:    make(chan GameEvent),
 		GameEnd:    make(chan struct{}),
+		ResyncCh:   make(chan int32, 4),
 	}
 	return g
 }
@@ -209,6 +211,8 @@ func (g *Game) waitForMove(ctx context.Context, activeIdx int, deadline time.Tim
 			return true
 		case <-ticker.C:
 			g.emitTurnTimeSync(activeIdx, time.Until(deadline))
+		case idx := <-g.ResyncCh:
+			g.emitGameResync(int(idx))
 		case <-ctx.Done():
 			return false
 		}
@@ -333,6 +337,51 @@ func (g *Game) playCard(playerIdx, cardIdx int, autoPlay bool) bool {
 		g.pendingRoundEnd = nil
 	}
 	return true
+}
+
+// emitGameResync builds the game-layer snapshot for a resyncing player and
+// emits it as an internal GAME_RESYNC event (consumed by the room). Runs on
+// the GameFn goroutine which owns the state, so no locking is needed.
+func (g *Game) emitGameResync(playerIdx int) {
+	if g.State.GetStatus() != sm.StatusPlay {
+		return
+	}
+	p := g.State.GetPlayer(int32(playerIdx))
+	if p == nil {
+		return
+	}
+	rs := g.State.GetRoundState()
+
+	body := &GameResyncBody{
+		Status:     int32(sm.StatusPlay),
+		HandCards:  g.buildCardInfos(p.GetHandCards()),
+		RoundSeq:   rs.Seq,
+		RoundMoves: g.buildCardInfos(rs.Moves),
+	}
+	for i := int32(0); i < g.NumPlayers; i++ {
+		pl := g.State.GetPlayer(i)
+		body.Scores = append(body.Scores, PlayerScore{PlayerIdx: i, Score: int32(pl.GetScore())})
+	}
+	ap := g.State.GetActivePlayer()
+	if ap != nil {
+		body.ActivePlayerIdx = int32(ap.GetIndex() - 1)
+		if body.ActivePlayerIdx == int32(playerIdx) {
+			hand := ap.GetHandCards()
+			for i, c := range hand {
+				if c.Playable() {
+					body.PlayableIndices = append(body.PlayableIndices, i)
+				}
+			}
+			body.RemainingSeconds = int(math.Ceil(time.Until(g.turnDeadline).Seconds()))
+			if body.RemainingSeconds < 0 {
+				body.RemainingSeconds = 0
+			}
+		}
+	}
+	g.emit(playerIdx, Message{
+		MsgType: MSG_TYPE_GAME_RESYNC,
+		MsgBody: body,
+	})
 }
 
 // handleTurnTimeout auto-plays the largest playable card for the player whose

@@ -2,70 +2,109 @@ package gameserver
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
 
+// Session owns a single WebSocket connection and its player's I/O goroutines.
+// The room tracks connection state via Session.discCh (closed once on detach),
+// so Player no longer carries a mutable Session pointer.
 type Session struct {
-	Conn               *websocket.Conn
-	Player             *Player
-	ClosedCh           chan struct{}
-	inputStreamClosed  chan struct{}
-	outputStreamClosed chan struct{}
+	Conn   *websocket.Conn
+	Player *Player
+
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	discCh     chan struct{}
+	detachOnce sync.Once
+	ClosedCh   chan struct{}
+	inputDone  chan struct{}
+	outputDone chan struct{}
 }
 
 func NewSession(conn *websocket.Conn, player *Player) *Session {
-	s := &Session{
-		Conn:               conn,
-		Player:             player,
-		ClosedCh:           make(chan struct{}),
-		inputStreamClosed:  make(chan struct{}),
-		outputStreamClosed: make(chan struct{}),
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Session{
+		Conn:       conn,
+		Player:     player,
+		ctx:        ctx,
+		cancel:     cancel,
+		discCh:     make(chan struct{}),
+		ClosedCh:   make(chan struct{}),
+		inputDone:  make(chan struct{}),
+		outputDone: make(chan struct{}),
 	}
-	player.Session = s
-	return s
 }
 
-func (s *Session) Input(ctx context.Context) {
+// DiscCh returns the channel closed exactly once when this session detaches
+// (read error, write error, or Close). The room selects on the CURRENT
+// session's channel only, so a stale session's close is naturally ignored.
+func (s *Session) DiscCh() <-chan struct{} {
+	return s.discCh
+}
+
+// detach marks the session as gone, exactly once.
+func (s *Session) detach() {
+	s.detachOnce.Do(func() {
+		close(s.discCh)
+	})
+}
+
+// Detach marks the session as gone (public for the room tests / lifecycle).
+func (s *Session) Detach() {
+	s.detach()
+}
+
+// Close shuts the connection down and cancels the session context so the
+// I/O goroutines (e.g. Output blocked on NoticeCh) stop promptly.
+func (s *Session) Close() {
+	if s.Conn != nil {
+		s.Conn.Close()
+	}
+	s.cancel()
+}
+
+func (s *Session) Input() {
 	defer func() {
-		s.inputStreamClosed <- struct{}{}
-		close(s.inputStreamClosed)
+		close(s.inputDone)
 	}()
 
 	var msg Message
 	for {
 		if err := s.Conn.ReadJSON(&msg); err != nil {
-			close(s.Player.Disconnected)
-			s.Player.Session = nil
+			s.detach()
 			return
 		}
-		s.Player.OperatorCh <- msg
+		select {
+		case s.Player.OperatorCh <- msg:
+		case <-s.ctx.Done():
+			return
+		}
 	}
 }
 
-func (s *Session) Output(ctx context.Context) {
+func (s *Session) Output() {
 	defer func() {
-		s.outputStreamClosed <- struct{}{}
-		close(s.outputStreamClosed)
+		close(s.outputDone)
 	}()
 
 	for {
 		select {
 		case msg := <-s.Player.NoticeCh:
 			if err := s.Conn.WriteJSON(&msg); err != nil {
-				close(s.Player.Disconnected)
-				s.Player.Session = nil
+				s.detach()
 				return
 			}
-		case <-ctx.Done():
+		case <-s.ctx.Done():
 			return
 		}
 	}
 }
 
-func (s *Session) SessionControl(ctx context.Context) {
-	<-s.inputStreamClosed
-	<-s.outputStreamClosed
-	s.ClosedCh <- struct{}{}
+func (s *Session) SessionControl() {
+	<-s.inputDone
+	<-s.outputDone
 	close(s.ClosedCh)
 }

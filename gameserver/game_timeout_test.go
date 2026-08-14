@@ -212,3 +212,23 @@ func TestGameFn_PanicEmitsFatal(t *testing.T) {
 		t.Fatal("GameEnd not closed after fatal")
 	}
 }
+
+func TestGameFn_ResyncEmitsGameState(t *testing.T) {
+	g, cancel := newTestGame(t, 5*time.Second, 0)
+	defer cancel()
+
+	// Ask the game goroutine for a resync snapshot for player 0
+	g.ResyncCh <- 0
+
+	ev := waitEvent(t, g, MSG_TYPE_GAME_RESYNC)
+	body, ok := ev.Msg.MsgBody.(*GameResyncBody)
+	require.True(t, ok)
+	assert.Equal(t, int32(sm.StatusPlay), body.Status)
+	assert.NotEmpty(t, body.HandCards, "resyncing player must receive hand cards")
+	assert.GreaterOrEqual(t, body.RoundSeq, 1)
+	assert.Len(t, body.Scores, 3)
+	assert.Equal(t, int32(0), body.ActivePlayerIdx, "first leader is player 0")
+	assert.NotEmpty(t, body.PlayableIndices, "leader has playable cards")
+	assert.Greater(t, body.RemainingSeconds, 0)
+	assert.Equal(t, 0, ev.Target, "game resync event targets the requesting player")
+}

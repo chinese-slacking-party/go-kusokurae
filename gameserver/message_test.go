@@ -111,3 +111,38 @@ func TestMoveMadeBodyJSON(t *testing.T) {
 	assert.NoError(t, err)
 	assert.JSONEq(t, `{"player_idx":2,"card_idx":1,"card":{"suit":1,"rank":8,"playable":false},"round_moves":[{"suit":1,"rank":8,"playable":false},{"suit":0,"rank":3,"playable":false}],"auto_play":true}`, string(b))
 }
+
+func TestResyncStateBodyJSON_NoGame(t *testing.T) {
+	body := ResyncStateBody{
+		Room: RoomResyncBody{
+			Players: []RoomPlayerInfo{{PlayerID: "abc", Nickname: "小明", Position: 0, IsHost: true}},
+			HostIdx: 0,
+			Game:    nil,
+		},
+	}
+	b, err := json.Marshal(body)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"room":{"players":[{"player_id":"abc","nickname":"小明","position":0,"is_host":true}],"host_idx":0,"game":null}}`, string(b))
+}
+
+func TestResyncStateBodyJSON_WithGame(t *testing.T) {
+	body := ResyncStateBody{
+		Room: RoomResyncBody{
+			Players: []RoomPlayerInfo{{PlayerID: "abc", Nickname: "小明", Position: 0, IsHost: true}},
+			HostIdx: 0,
+			Game: &GameResyncBody{
+				Status:           2,
+				HandCards:        []CardInfo{{Suit: 0, Rank: 5, Playable: true}},
+				RoundSeq:         1,
+				RoundMoves:       []CardInfo{{Suit: 1, Rank: 8, Playable: false}},
+				Scores:           []PlayerScore{{PlayerIdx: 0, Score: 2}, {PlayerIdx: 1, Score: 0}},
+				ActivePlayerIdx:  0,
+				PlayableIndices:  []int{0, 1},
+				RemainingSeconds: 28,
+			},
+		},
+	}
+	b, err := json.Marshal(body)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"room":{"players":[{"player_id":"abc","nickname":"小明","position":0,"is_host":true}],"host_idx":0,"game":{"status":2,"hand_cards":[{"suit":0,"rank":5,"playable":true}],"round_seq":1,"round_moves":[{"suit":1,"rank":8,"playable":false}],"scores":[{"player_idx":0,"score":2},{"player_idx":1,"score":0}],"active_player_idx":0,"playable_indices":[0,1],"remaining_seconds":28}}}`, string(b))
+}

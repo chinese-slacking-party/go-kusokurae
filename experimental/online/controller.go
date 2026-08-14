@@ -52,67 +52,19 @@ func handleWebSocket(c *gin.Context) {
 		return
 	}
 
-	// Handle reconnect: close old session if exists
-	if player.Session != nil {
-		player.Session.Conn.Close()
-		<-player.Session.ClosedCh
-	}
-
-	// Replace Disconnected chan for fresh connection
-	player.Disconnected = make(chan struct{})
-
+	// Attach the new session first (room always sees the player connected),
+	// then shut down the previous session and wait for it to fully stop.
 	s := gameserver.NewSession(conn, player)
-
-	// Notify room goroutine to monitor the new Disconnected channel
-	room.UpdateDiscChannel(int(player.RoomPosition), player.Disconnected)
-
-	go s.SessionControl(c.Request.Context())
-	go s.Input(c.Request.Context())
-	go s.Output(c.Request.Context())
-
-	// Send current room roster on connect (ADR-0003)
-	s.Player.NoticeCh <- room.BuildRoomStateMessage()
-
-	// If game is in progress, re-sync state to the reconnected player
-	if g := room.Game(); g != nil && g.State != nil {
-		g.StateMutex.Lock()
-		state := g.State
-		status := state.GetStatus()
-		var reSyncMsg *gameserver.Message
-		if status == sm.StatusPlay {
-			activePlayer := state.GetActivePlayer()
-			if activePlayer != nil && activePlayer.GetIndex()-1 == int(player.RoomPosition) {
-				idx := int(player.RoomPosition)
-				p := state.GetPlayer(int32(idx))
-				handCards := p.GetHandCards()
-				playableIndices := make([]int, 0)
-				for i, c := range handCards {
-					if c.Playable() {
-						playableIndices = append(playableIndices, i)
-					}
-				}
-				rs := state.GetRoundState()
-				cardInfos := make([]gameserver.CardInfo, len(rs.Moves))
-				for i, c := range rs.Moves {
-					cardInfos[i] = gameserver.CardInfo{
-						Suit: int32(c.GetSuit()), Rank: int32(c.GetRank()),
-					}
-				}
-				reSyncMsg = &gameserver.Message{
-					MsgType: gameserver.MSG_TYPE_YOUR_TURN,
-					MsgBody: &gameserver.YourTurnBody{
-						PlayableIndices: playableIndices,
-						RoundSeq:        rs.Seq,
-						RoundMoves:      cardInfos,
-					},
-				}
-			}
-		}
-		g.StateMutex.Unlock()
-		if reSyncMsg != nil {
-			s.Player.NoticeCh <- *reSyncMsg
-		}
+	if old := room.AttachSession(player.RoomPosition, s); old != nil {
+		old.Close()
+		<-old.ClosedCh
 	}
+
+	go s.SessionControl()
+	go s.Input()
+	go s.Output()
+
+	// Client pulls state by sending RESYNC_STATE; the server pushes nothing.
 
 	<-s.ClosedCh
 }

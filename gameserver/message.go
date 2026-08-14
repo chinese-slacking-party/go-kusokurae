@@ -17,6 +17,8 @@ const MSG_TYPE_MOVE_MADE = "MOVE_MADE"
 const MSG_TYPE_ROUND_END = "ROUND_END"
 const MSG_TYPE_GAME_OVER = "GAME_OVER"
 const MSG_TYPE_TURN_TIME_SYNC = "TURN_TIME_SYNC"
+const MSG_TYPE_RESYNC_STATE = "RESYNC_STATE"
+const MSG_TYPE_GAME_RESYNC = "GAME_RESYNC"
 const MSG_TYPE_PLAYER_JOINED = "PLAYER_JOINED"
 const MSG_TYPE_PLAYER_LEFT = "PLAYER_LEFT"
 
@@ -96,6 +98,30 @@ type GameOverBody struct {
 type PlayerScore struct {
 	PlayerIdx int32 `json:"player_idx"`
 	Score     int32 `json:"score"`
+}
+
+// ResyncStateBody is the server→client reply to a RESYNC_STATE request.
+// Game is nested inside Room and is null when no game is in progress.
+type ResyncStateBody struct {
+	Room RoomResyncBody `json:"room"`
+}
+
+type RoomResyncBody struct {
+	Players []RoomPlayerInfo `json:"players"`
+	HostIdx int32            `json:"host_idx"`
+	Game    *GameResyncBody  `json:"game"`
+}
+
+// GameResyncBody carries the game-layer snapshot for the requesting player.
+type GameResyncBody struct {
+	Status           int32         `json:"status"` // sm.GameStatus
+	HandCards        []CardInfo    `json:"hand_cards"`
+	RoundSeq         int           `json:"round_seq"`
+	RoundMoves       []CardInfo    `json:"round_moves"`
+	Scores           []PlayerScore `json:"scores"`
+	ActivePlayerIdx  int32         `json:"active_player_idx"`
+	PlayableIndices  []int         `json:"playable_indices"`
+	RemainingSeconds int           `json:"remaining_seconds"`
 }
 
 type PlayerJoinedBody struct {
