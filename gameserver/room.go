@@ -30,6 +30,7 @@ type Room struct {
 	Players             []*Player
 	TurnTimeoutSec      int32
 	TurnSyncIntervalSec int32
+	nextStartPlayer     int32
 
 	// Slot arrays for run() select — nil means empty/inactive
 	opChs     [4]chan Message
@@ -165,6 +166,15 @@ func (r *Room) BuildRoomStateMessage() Message {
 	return r.buildRoomStateMessage()
 }
 
+// startPlayerForNextGame returns the first-round leader seat for the next game
+// and advances the rotation counter. Rotates 0,1,2,... mod NumPlayers for as
+// long as the room exists; never reset (see ADR-0008).
+func (r *Room) startPlayerForNextGame() int32 {
+	p := r.nextStartPlayer
+	r.nextStartPlayer = (r.nextStartPlayer + 1) % r.GameConfig.NumPlayers
+	return p
+}
+
 func (r *Room) StartGame(requesterID string) error {
 	r.Mutex.Lock()
 	defer r.Mutex.Unlock()
@@ -181,7 +191,9 @@ func (r *Room) StartGame(requesterID string) error {
 
 	players := make([]*Player, r.GameConfig.NumPlayers)
 	copy(players, r.Players[:r.GameConfig.NumPlayers])
-	g := NewGame(r.GameConfig, int32(len(players)))
+	cfg := *r.GameConfig
+	cfg.FirstPlayerIdx = r.startPlayerForNextGame()
+	g := NewGame(&cfg, int32(len(players)))
 	g.TurnTimeout = time.Duration(r.TurnTimeoutSec) * time.Second
 	if g.TurnTimeout <= 0 {
 		g.TurnTimeout = DefaultTurnTimeout

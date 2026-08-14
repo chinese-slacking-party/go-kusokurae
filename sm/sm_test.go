@@ -152,3 +152,45 @@ func TestPickLargestPlayable(t *testing.T) {
 		assert.Equal(t, -1, PickLargestPlayable(nil))
 	})
 }
+
+func TestGameStartWithFirstPlayer(t *testing.T) {
+	for _, leader := range []int32{0, 1, 2} {
+		state, err := NewGame(GameConfig{
+			NumPlayers:     3,
+			FirstPlayerIdx: leader,
+		}, nil)
+		assert.NoError(t, err)
+
+		err = state.Start()
+		assert.NoError(t, err)
+		assert.Equal(t, StatusPlay, state.status)
+		for i := int32(0); i < 3; i++ {
+			want := RoundWaiting
+			if i == leader {
+				want = RoundActive
+			}
+			assert.Equalf(t, want, state.players[i].active, "player %d active state", i)
+		}
+		assert.Equal(t, &state.players[leader], state.GetActivePlayer())
+	}
+}
+
+func TestGameStartFirstPlayerOutOfRangeWraps(t *testing.T) {
+	// Invalid first_player_idx must wrap mod np instead of panicking
+	for _, leader := range []int32{-1, 3, 4, 100} {
+		state, err := NewGame(GameConfig{
+			NumPlayers:     3,
+			FirstPlayerIdx: leader,
+		}, nil)
+		assert.NoError(t, err)
+
+		err = state.Start()
+		assert.NoError(t, err)
+		assert.Equal(t, StatusPlay, state.status)
+		// Active player must be one of the three seats
+		ap := state.GetActivePlayer()
+		assert.NotNil(t, ap)
+		assert.GreaterOrEqual(t, ap.index, int32(1))
+		assert.LessOrEqual(t, ap.index, int32(3))
+	}
+}

@@ -289,10 +289,14 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     }
 
     memset(&self->current_round, 0, sizeof(self->current_round));
-    // It's 1P (players[0])'s turn now
-    self->players[0].active = KUSOKURAE_ROUND_ACTIVE;
+    // It's cfg.first_player_idx's turn now (rotation; wrap mod np defensively)
+    int first = self->cfg.first_player_idx % self->cfg.np;
+    if (first < 0) {
+        first += self->cfg.np;
+    }
+    self->players[first].active = KUSOKURAE_ROUND_ACTIVE;
     game_state_change(self, KUSOKURAE_STATUS_PLAY);
-    player_set_playable_flags(&self->players[0], 1);
+    player_set_playable_flags(&self->players[first], 1);
     self->nround = 0;
     self->high_ranker_index = -1;
     return KUSOKURAE_SUCCESS;

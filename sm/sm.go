@@ -125,8 +125,11 @@ var errMap = map[C.kusokurae_error_t]error{
 }
 
 // GameConfig has the same memory layout with C.kusokurae_game_config_t.
+// FirstPlayerIdx is server-internal (json:"-"): the first-round leader by
+// 0-based seat, wrapped mod NumPlayers by the engine at Start.
 type GameConfig struct {
-	NumPlayers int32 `json:"num_players"`
+	NumPlayers     int32 `json:"num_players"`
+	FirstPlayerIdx int32 `json:"-"`
 }
 
 // GameCallbacks has the same memory layout with C.kusokurae_game_callbacks_t.

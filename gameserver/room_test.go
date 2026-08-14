@@ -210,3 +210,11 @@ func TestRun_DisconnectStaleEventIgnored(t *testing.T) {
 
 	assert.Nil(t, discChs0)
 }
+
+func TestRoom_StartPlayerRotation(t *testing.T) {
+	room := &Room{nextStartPlayer: 0, GameConfig: &sm.GameConfig{NumPlayers: 3}}
+	assert.Equal(t, int32(0), room.startPlayerForNextGame())
+	assert.Equal(t, int32(1), room.startPlayerForNextGame())
+	assert.Equal(t, int32(2), room.startPlayerForNextGame())
+	assert.Equal(t, int32(0), room.startPlayerForNextGame(), "rotation wraps after 3 games")
+}
