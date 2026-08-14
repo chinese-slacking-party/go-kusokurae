@@ -325,6 +325,7 @@ func (g *Game) playCard(playerIdx, cardIdx int, autoPlay bool) bool {
 	})
 
 	if g.pendingRoundEnd != nil {
+		<-time.After(500 * time.Millisecond)
 		g.emit(-1, Message{
 			MsgType: MSG_TYPE_ROUND_END,
 			MsgBody: g.pendingRoundEnd,
