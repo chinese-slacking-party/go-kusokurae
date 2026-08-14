@@ -293,8 +293,8 @@ func (r *Room) handlePlayerMessage(idx int, msg Message) {
 }
 
 // handleResyncState serves a RESYNC_STATE request: marks the seat as awaiting
-// its game snapshot and either queues the request to the game goroutine or
-// replies immediately when no game is in progress.
+// its game snapshot and forwards the request to the game goroutine through the
+// unified CmdCh; replies immediately when no game is in progress.
 func (r *Room) handleResyncState(idx int) {
 	p := r.Players[idx]
 	if p == nil {
@@ -303,10 +303,15 @@ func (r *Room) handleResyncState(idx int) {
 	r.resyncPending[idx] = true
 	if g := r.game.Load(); g != nil {
 		select {
-		case g.ResyncCh <- int32(idx):
-		default:
-			// Game cannot accept the request right now: reply without game part.
-			r.sendResyncState(p, nil)
+		case g.CmdCh <- GameCommand{
+			PlayerIdx: idx,
+			Msg:       Message{MsgType: MSG_TYPE_RESYNC_STATE},
+		}:
+			// Queued; the GAME_RESYNC reply event will arrive via handleGameEvent.
+		case <-g.GameEnd:
+			// Game is gone; no reply will come. Clear the pending flag.
+			r.resyncPending[idx] = false
+		case <-r.Ctx.Done():
 		}
 		return
 	}

@@ -77,7 +77,6 @@ type Game struct {
 	CmdCh            chan GameCommand
 	EventCh          chan GameEvent
 	GameEnd          chan struct{}
-	ResyncCh         chan int32
 	pendingRoundEnd  *RoundEndBody
 	turnDeadline     time.Time
 	panicHook        func()
@@ -95,7 +94,6 @@ func NewGame(config *sm.GameConfig, numPlayers int32) *Game {
 		CmdCh:      make(chan GameCommand),
 		EventCh:    make(chan GameEvent),
 		GameEnd:    make(chan struct{}),
-		ResyncCh:   make(chan int32, 4),
 	}
 	return g
 }
@@ -201,21 +199,34 @@ func (g *Game) waitForMove(ctx context.Context, activeIdx int, deadline time.Tim
 	for {
 		select {
 		case cmd := <-g.CmdCh:
-			if g.handleMove(cmd.PlayerIdx, cmd.Msg) {
+			if g.handleCommand(cmd) {
 				return true
 			}
-			// Failed move: error (+ re-sent YOUR_TURN) already emitted, keep
-			// waiting on the same deadline.
+			// Failed move or non-turn-ending command: error (+ re-sent YOUR_TURN)
+			// may already have been emitted; keep waiting on the same deadline.
 		case <-time.After(time.Until(deadline)):
 			g.handleTurnTimeout(activeIdx)
 			return true
 		case <-ticker.C:
 			g.emitTurnTimeSync(activeIdx, time.Until(deadline))
-		case idx := <-g.ResyncCh:
-			g.emitGameResync(int(idx))
 		case <-ctx.Done():
 			return false
 		}
+	}
+}
+
+// handleCommand dispatches a game command by message type. Returns true if a
+// card was played (the turn has ended); false otherwise.
+func (g *Game) handleCommand(cmd GameCommand) bool {
+	switch cmd.Msg.MsgType {
+	case MSG_TYPE_PLAY_CARD:
+		return g.handleMove(cmd.PlayerIdx, cmd.Msg)
+	case MSG_TYPE_RESYNC_STATE:
+		g.emitGameResync(cmd.PlayerIdx)
+		return false
+	default:
+		log.Printf("Game %s dropped unknown command %s from %d\n", trunc8(g.ID), cmd.Msg.MsgType, cmd.PlayerIdx)
+		return false
 	}
 }
 

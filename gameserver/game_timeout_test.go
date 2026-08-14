@@ -217,8 +217,13 @@ func TestGameFn_ResyncEmitsGameState(t *testing.T) {
 	g, cancel := newTestGame(t, 5*time.Second, 0)
 	defer cancel()
 
-	// Ask the game goroutine for a resync snapshot for player 0
-	g.ResyncCh <- 0
+	// Let GameFn reach waitForMove first (it emits GAME_START + YOUR_TURN and
+	// blocks on EventCh until read), then send the resync command.
+	waitEvent(t, g, MSG_TYPE_YOUR_TURN)
+	g.CmdCh <- GameCommand{
+		PlayerIdx: 0,
+		Msg:       Message{MsgType: MSG_TYPE_RESYNC_STATE},
+	}
 
 	ev := waitEvent(t, g, MSG_TYPE_GAME_RESYNC)
 	body, ok := ev.Msg.MsgBody.(*GameResyncBody)
