@@ -76,3 +76,7 @@ go run ./experimental/selfplay/          # 终端自玩客户端
 go run ./experimental/online/            # 启动在线游戏服务器（端口 8080）
 go build -o server ./experimental/online/
 ```
+
+## TODO
+
+1.内存监控，room注销已完成，还需测试是否有协程、channel等泄露问题
