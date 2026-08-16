@@ -125,8 +125,11 @@ var errMap = map[C.kusokurae_error_t]error{
 }
 
 // GameConfig has the same memory layout with C.kusokurae_game_config_t.
+// FirstPlayerIdx is server-internal (json:"-"): the first-round leader by
+// 0-based seat, wrapped mod NumPlayers by the engine at Start.
 type GameConfig struct {
-	NumPlayers int32
+	NumPlayers     int32 `json:"num_players"`
+	FirstPlayerIdx int32 `json:"-"`
 }
 
 // GameCallbacks has the same memory layout with C.kusokurae_game_callbacks_t.
@@ -376,6 +379,21 @@ func (g *GameState) GetRoundState() (ret RoundState) {
 		ret.Moves = append(ret.Moves, *move)
 	}
 	return
+}
+
+// PickLargestPlayable returns the index of the largest playable card in hand
+// (by rank; ties broken by first occurrence), or -1 if no card is playable.
+func PickLargestPlayable(hand []Card) int {
+	best := -1
+	for i, c := range hand {
+		if !c.Playable() {
+			continue
+		}
+		if best < 0 || c.GetRank() > hand[best].GetRank() {
+			best = i
+		}
+	}
+	return best
 }
 
 // Play plays a card for the active player and return the operation result.

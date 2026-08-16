@@ -116,3 +116,81 @@ func TestCardString(t *testing.T) {
 		{0, SuitYoutiao, 3, 128},
 	}))
 }
+
+func TestPickLargestPlayable(t *testing.T) {
+	playable := func(rank int32, suit Suit) Card {
+		return Card{displayOrder: 1, suit: suit, rank: rank, flags: 0x80}
+	}
+	unplayable := func(rank int32, suit Suit) Card {
+		return Card{displayOrder: 1, suit: suit, rank: rank}
+	}
+
+	t.Run("picks highest rank among playable", func(t *testing.T) {
+		hand := []Card{
+			playable(3, SuitBaozi),
+			unplayable(9, SuitBaozi),
+			playable(7, SuitYoutiao),
+			playable(5, SuitXiang),
+		}
+		assert.Equal(t, 2, PickLargestPlayable(hand))
+	})
+
+	t.Run("tie breaks to first in hand", func(t *testing.T) {
+		hand := []Card{
+			playable(10, SuitBaozi),
+			playable(10, SuitOther),
+		}
+		assert.Equal(t, 0, PickLargestPlayable(hand))
+	})
+
+	t.Run("no playable returns -1", func(t *testing.T) {
+		hand := []Card{unplayable(9, SuitBaozi), unplayable(3, SuitXiang)}
+		assert.Equal(t, -1, PickLargestPlayable(hand))
+	})
+
+	t.Run("empty hand returns -1", func(t *testing.T) {
+		assert.Equal(t, -1, PickLargestPlayable(nil))
+	})
+}
+
+func TestGameStartWithFirstPlayer(t *testing.T) {
+	for _, leader := range []int32{0, 1, 2} {
+		state, err := NewGame(GameConfig{
+			NumPlayers:     3,
+			FirstPlayerIdx: leader,
+		}, nil)
+		assert.NoError(t, err)
+
+		err = state.Start()
+		assert.NoError(t, err)
+		assert.Equal(t, StatusPlay, state.status)
+		for i := int32(0); i < 3; i++ {
+			want := RoundWaiting
+			if i == leader {
+				want = RoundActive
+			}
+			assert.Equalf(t, want, state.players[i].active, "player %d active state", i)
+		}
+		assert.Equal(t, &state.players[leader], state.GetActivePlayer())
+	}
+}
+
+func TestGameStartFirstPlayerOutOfRangeWraps(t *testing.T) {
+	// Invalid first_player_idx must wrap mod np instead of panicking
+	for _, leader := range []int32{-1, 3, 4, 100} {
+		state, err := NewGame(GameConfig{
+			NumPlayers:     3,
+			FirstPlayerIdx: leader,
+		}, nil)
+		assert.NoError(t, err)
+
+		err = state.Start()
+		assert.NoError(t, err)
+		assert.Equal(t, StatusPlay, state.status)
+		// Active player must be one of the three seats
+		ap := state.GetActivePlayer()
+		assert.NotNil(t, ap)
+		assert.GreaterOrEqual(t, ap.index, int32(1))
+		assert.LessOrEqual(t, ap.index, int32(3))
+	}
+}

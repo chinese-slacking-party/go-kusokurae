@@ -1,0 +1,556 @@
+# Kusokurae 在线玩法 API 文档
+
+## 通用约定
+
+### 基础地址
+
+```
+http://localhost:8080
+```
+
+### HTTP 响应格式
+
+所有 HTTP 接口统一返回 JSON：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {}
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| code | int | 0=成功，非0=失败 |
+| message | string | 状态描述 |
+| data | object/null | 业务数据 |
+
+### WebSocket 消息格式
+
+所有 WebSocket 消息使用统一的信封结构：
+
+```json
+{
+  "type": "消息类型",
+  "body": {}
+}
+```
+
+---
+
+## 一、HTTP 接口
+
+### 1.1 创建房间
+
+```
+POST /api/v1/room/new
+```
+
+**请求体：**
+
+```json
+{
+  "num_players": 3,
+  "nickname": "小明",
+  "turn_timeout_seconds": 30
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| num_players | int | 是 | 玩家人数，仅支持 3 或 4 |
+| nickname | string | 是 | 玩家昵称，trim 后 1~20 个字符，仅允许可打印字符（中英文均可） |
+| turn_timeout_seconds | int | 否 | 每回合出牌时限（秒），范围 5~120；缺省/0 时默认 30 |
+| turn_sync_interval_seconds | int | 否 | 回合时间同步事件间隔（秒），缺省/0 时默认 5；须在 1~60 且小于 turn_timeout_seconds |
+
+**成功响应：**
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "room_id": "550e8400-e29b-41d4-a716-446655440000",
+    "player_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| room_id | string | 房间 ID（UUID），分享给其他玩家加入 |
+| player_id | string | 房主玩家 ID（UUID），用于 WebSocket 连接 |
+
+房主即创建者，自动入座 position 0，拥有启动游戏权限。
+
+---
+
+### 1.2 加入房间
+
+```
+POST /api/v1/room/join?room_id={room_id}
+```
+
+**查询参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| room_id | string | 是 | 要加入的房间 ID |
+| nickname | string | 是 | 玩家昵称，校验规则同创建房间 |
+
+**成功响应：**
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "room_id": "550e8400-e29b-41d4-a716-446655440000",
+    "player_id": "bf3d5e7a-1234-5678-9abc-def012345678"
+  }
+}
+```
+
+**错误响应：**
+
+| code | message | 场景 |
+|------|---------|------|
+| 1 | room not found | room_id 对应的房间不存在 |
+| 1 | room is full!!! | 房间已满 |
+| 1 | game already started | 游戏已开始，无法加入 |
+
+---
+
+## 二、WebSocket 实时通信
+
+### 连接
+
+```
+GET ws://localhost:8080/api/v1/communication/{room_id}/{player_id}
+```
+
+连接成功后，客户端与服务端通过 JSON 消息双向通信。**连接后服务端零推送**——客户端主动发送 `RESYNC_STATE` 拉取当前房间与游戏状态（见 3.3 / 4.10），服务端返回房间名单（嵌套游戏状态）。
+
+**断线重连：** 使用相同的 URL 重新建立 WebSocket 连接即可。服务端复用已有 Player 状态（昵称不变），旧连接自动关闭；连接后同样发送 `RESYNC_STATE` 恢复牌局（含手牌、轮次、分数、行动权与倒计时）。
+
+---
+
+## 三、客户端 → 服务端消息
+
+### 3.1 开始游戏
+
+仅房主可发送，房间满员后有效。
+
+```json
+{
+  "type": "START_GAME"
+}
+```
+
+服务器收到后开始发牌并广播 `GAME_START`。
+
+**可能错误：**
+- `game already started` — 游戏已经开始
+- `not enough players` — 人数未满
+- `only host can start game` — 非房主发送
+
+---
+
+### 3.2 出牌
+
+轮到自己的回合时发送。
+
+```json
+{
+  "type": "PLAY_CARD",
+  "body": {
+    "card_index": 2
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| card_index | int | 手牌索引，对应 `YOUR_TURN` 中 `playable_indices` 之一 |
+
+**可能错误：**
+- `not your turn` — 不是你的回合
+- `card index out of range` — 手牌索引越界
+- `KUSOKURAE_ERROR_FORBIDDEN_MOVE` — 规则不允许出此牌
+
+---
+
+### 3.3 状态同步 `RESYNC_STATE`
+
+连接建立后（含断线重连）发送，拉取当前房间与游戏状态。无 body。
+
+```json
+{
+  "type": "RESYNC_STATE"
+}
+```
+
+服务端回复一份 `RESYNC_STATE`（见 4.10），客户端以此建立房间名单并（若游戏中）恢复牌局。
+
+---
+
+### 3.4 离开房间 `LEAVE_ROOM`
+
+无 body。**房主**发送则销毁整个房间（终止进行中的游戏、断开所有玩家）；**非房主**发送则仅断开自己（座位保留，等同断线）。
+
+```json
+{
+  "type": "LEAVE_ROOM"
+}
+```
+
+---
+
+## 四、服务端 → 客户端消息
+
+### 4.1 房间状态 `ROOM_STATE`
+
+玩家加入/离开时广播全房间状态。
+
+```json
+{
+  "type": "ROOM_STATE",
+  "body": {
+    "players": [
+      { "player_id": "a1b2...", "nickname": "小明", "position": 0, "is_host": true },
+      { "player_id": "bf3d...", "nickname": "小红", "position": 1, "is_host": false }
+    ],
+    "host_idx": 0
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| players[].player_id | string | 玩家 ID |
+| players[].nickname | string | 玩家昵称（create/join 时提供，房间内以此展示） |
+| players[].position | int | 座位号 (0-based) |
+| players[].is_host | bool | 是否为房主 |
+| host_idx | int | 房主座位号 |
+
+---
+
+### 4.2 玩家加入 `PLAYER_JOINED`
+
+有新玩家加入时广播。
+
+```json
+{
+  "type": "PLAYER_JOINED",
+  "body": {
+    "player_id": "bf3d...",
+    "nickname": "小红",
+    "position": 1
+  }
+}
+```
+
+---
+
+### 4.3 游戏开始 `GAME_START`
+
+房间满员且房主开始游戏后，单独发给每位玩家。
+
+```json
+{
+  "type": "GAME_START",
+  "body": {
+    "hand_cards": [
+      { "suit": 0, "rank": 3, "playable": false },
+      { "suit": 1, "rank": 5, "playable": false }
+    ],
+    "first_player_idx": 0,
+    "your_player_idx": 0
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| hand_cards | CardInfo[] | 该玩家的初始手牌 |
+| first_player_idx | int | 首位行动玩家的座位号 |
+| your_player_idx | int | 接收此消息的玩家座位号（0-based） |
+
+---
+
+### 4.4 轮到你了 `YOUR_TURN`
+
+发送给当前行动玩家，告知可出的手牌。
+
+```json
+{
+  "type": "YOUR_TURN",
+  "body": {
+    "playable_indices": [0, 2],
+    "round_seq": 1,
+    "round_moves": [
+      { "suit": 0, "rank": 3, "playable": false }
+    ]
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| playable_indices | int[] | 当前可出的手牌索引列表 |
+| round_seq | int | 当前轮次序号 |
+| round_moves | CardInfo[] | 本轮已出的牌 |
+| timeout_seconds | int | 本回合出牌时限（秒），超时未出牌将自动出最大可出牌 |
+| remaining_seconds | int | 本回合剩余秒数（服务器计算，向上取整）；失败重发/重连补发时也准确反映真实剩余时间 |
+
+> 出牌被拒绝（非法索引、规则不允许等）时，服务端会先发送 `ERROR`，随后**重新发送一份 `YOUR_TURN`**（同样的回合数据）供客户端重新出牌。重新下发**不会重置**出牌倒计时。
+
+---
+
+### 4.5 出牌广播 `MOVE_MADE`
+
+某位玩家出牌后向全体广播。
+
+```json
+{
+  "type": "MOVE_MADE",
+  "body": {
+    "player_idx": 0,
+    "card": { "suit": 1, "rank": 5, "playable": false },
+    "round_moves": [
+      { "suit": 1, "rank": 5, "playable": false }
+    ]
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| player_idx | int | 出牌玩家座位号 |
+| card_idx | int | 所出牌在出牌人手牌中的位置（与 `YOUR_TURN.playable_indices` 同坐标系，仅出牌瞬间有效，出牌后索引会左移） |
+| card | CardInfo | 打出的牌 |
+| round_moves | CardInfo[] | 本轮截至目前所有已出的牌 |
+| auto_play | bool | 是否为自动出牌（超时未出牌时由服务端代打，选出最大可出牌） |
+
+---
+
+### 4.6 回合结束 `ROUND_END`
+
+一轮结束时广播。
+
+```json
+{
+  "type": "ROUND_END",
+  "body": {
+    "winner_idx": 1,
+    "score": 2
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| winner_idx | int | 本轮赢家座位号 |
+| score | int | 本轮牌面总分 |
+
+---
+
+### 4.7 游戏结束 `GAME_OVER`
+
+所有牌打完时广播，宣布最终胜负。
+
+```json
+{
+  "type": "GAME_OVER",
+  "body": {
+    "final_scores": [
+      { "player_idx": 0, "score": 5 },
+      { "player_idx": 1, "score": 8 },
+      { "player_idx": 2, "score": 3 }
+    ],
+    "winner_idx": 1
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| final_scores[].player_idx | int | 玩家座位号 |
+| final_scores[].score | int | 最终得分（吃进的总分数） |
+| winner_idx | int | 赢家座位号（得分最高者） |
+
+---
+
+### 4.8 回合时间同步 `TURN_TIME_SYNC`
+
+回合进行中，服务端按 `turn_sync_interval_seconds`（缺省 5s）间隔**仅向当前行动玩家**发送时间同步事件，用于校正客户端本地倒计时。
+
+```json
+{
+  "type": "TURN_TIME_SYNC",
+  "body": {
+    "remaining_seconds": 8,
+    "round_seq": 3
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| remaining_seconds | int | 本回合剩余秒数（服务器计算，向上取整） |
+| round_seq | int | 当前轮次序号，用于丢弃过期 tick |
+
+> 客户端以 `YOUR_TURN.remaining_seconds` 初始化本地倒计时，此后每次收到 `TURN_TIME_SYNC` 校正。收到重发的 `YOUR_TURN`（出牌失败/重连）时以其中的 `remaining_seconds` 重新对齐——它不表示新回合。
+
+---
+
+### 4.9 游戏异常终止 `GAME_FATAL`
+
+`GameFn` 内部发生异常（panic）时向**全体玩家广播**，通知结束游戏画面、回到房间画面。**仅异常路径发出**；正常结束发 `GAME_OVER`。
+
+```json
+{
+  "type": "GAME_FATAL",
+  "body": {
+    "message": "boom"
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| message | string | 异常信息（调试用） |
+
+> 收到 `GAME_FATAL` 后房间可重新 `START_GAME`（服务端已释放结束的游戏实例）。
+
+---
+
+### 4.10 状态同步响应 `RESYNC_STATE`
+
+响应客户端的 `RESYNC_STATE` 请求（见 3.3）。**`game` 嵌套在 `room` 内**，游戏未开始/已结束时为 `null`。
+
+```json
+{
+  "type": "RESYNC_STATE",
+  "body": {
+    "room": {
+      "players": [
+        { "player_id": "a1b2...", "nickname": "小明", "position": 0, "is_host": true }
+      ],
+      "host_idx": 0,
+      "game": null
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| room.players | RoomPlayerInfo[] | 房间名单（同 ROOM_STATE） |
+| room.host_idx | int | 房主座位号 |
+| room.game | object\|null | 游戏状态快照，未开始时为 null |
+
+游戏中 `room.game` 结构：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| game.status | int | 游戏状态（2=游戏中） |
+| game.hand_cards | CardInfo[] | **请求玩家**的当前手牌（断线重连后以此恢复） |
+| game.round_seq | int | 当前轮次序号 |
+| game.round_moves | CardInfo[] | 本轮已出的牌 |
+| game.scores | {player_idx, score}[] | 各玩家累计分数 |
+| game.active_player_idx | int | 当前行动玩家座位号 |
+| game.playable_indices | int[] | 若轮到请求玩家：可出牌索引列表 |
+| game.remaining_seconds | int | 若轮到请求玩家：本回合剩余秒数 |
+
+> 快照反映服务端处理时刻的状态，可能晚于请求后到达的新事件；客户端以快照为准，随后的事件（`MOVE_MADE`/`YOUR_TURN`）纠正。
+
+---
+
+### 4.11 房间关闭 `ROOM_CLOSED`
+
+房主离开（掉线或发送 `LEAVE_ROOM`）导致房间销毁时，向**其他在线玩家**广播（尽力而为），随后断开所有连接。
+
+```json
+{
+  "type": "ROOM_CLOSED",
+  "body": {
+    "reason": "host_left"
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| reason | string | 关闭原因（当前仅 `host_left`） |
+
+> 收到后客户端应结束当前画面回到大厅；服务端随即关闭连接。房间从服务端仓库移除，后续查询返回 not found。
+
+---
+
+### 4.12 错误消息 `ERROR`
+
+操作失败时单独发送给对应玩家。
+
+```json
+{
+  "type": "ERROR",
+  "body": {
+    "message": "not your turn"
+  }
+}
+```
+
+---
+
+## 五、数据结构
+
+### CardInfo
+
+```json
+{
+  "suit": 0,
+  "rank": 5,
+  "playable": true
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| suit | int | 花色：-1=翔(Xiang), 0=油条(Youtiao), 1=包子(Baozi), 2=其他(Other) |
+| rank | int | 牌面点数 |
+| playable | bool | 当前是否可出 |
+
+---
+
+## 六、完整流程示例
+
+```
+1. 玩家A: POST /api/v1/room/new  { "num_players": 3, "nickname": "小明" }
+   → 获得 room_id + player_id (房主，position=0)
+
+2. 玩家A: WebSocket /api/v1/communication/{room_id}/{playerA_ID}
+   → 连接建立，收到 ROOM_STATE
+
+3. 玩家B: POST /api/v1/room/join?room_id={room_id}&nickname=小红
+   → 获得 player_id (position=1)
+   → 玩家A 收到 PLAYER_JOINED + ROOM_STATE
+
+4. 玩家B: WebSocket /api/v1/communication/{room_id}/{playerB_ID}
+   → 连接建立，收到 ROOM_STATE
+
+5. 玩家C: POST /api/v1/room/join → WebSocket 连接
+   → 全员收到 ROOM_STATE，3人满员
+
+6. 玩家A 发送: { "type": "START_GAME" }
+   → 全员收到 GAME_START（含各自手牌）
+   → first_player_idx 对应玩家收到 YOUR_TURN
+
+7. 当前行动玩家发送: { "type": "PLAY_CARD", "body": { "card_index": 0 } }
+   → 全员收到 MOVE_MADE
+   → 下一位收到 YOUR_TURN
+   ...（回合循环）
+
+8. 所有牌出完后，全员收到 GAME_OVER
+```

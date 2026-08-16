@@ -16,7 +16,8 @@ struct kusokurae_game_state_t; // Forward declaration
 typedef void (*state_transition_cb)(struct kusokurae_game_state_t *self, int32_t newstate, void *userdata);
 
 typedef struct {
-    int32_t np; // Number of players (3 or 4)
+    int32_t np;               // Number of players (3 or 4)
+    int32_t first_player_idx; // 0-based first-round leader; mod np at start
 } kusokurae_game_config_t;
 
 typedef struct {
