@@ -1,0 +1,31 @@
+go-kusokurae —— 卡牌游戏《喂你吃翔》的规则引擎与服务端
+======================================================
+
+授权声明
+--------
+
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+本仓库的全部源文件均适用上述声明。MPL-2.0 的 Exhibit A 允许在单个文件
+中放置该声明不便时，将其置于接收者容易找到的位置（例如相关目录下的
+LICENSE 文件），本仓库采用这一方式，因此各源文件顶部不再重复该声明。
+协议全文见同目录下的 LICENSE。
+
+
+历史授权
+--------
+
+本项目在 2026 年 8 月改用 MPL-2.0 之前，曾以 The Unlicense 发布，即已
+置于公有领域。该声明不可撤销：在此之前公开发布的各个版本（包括 git
+历史中截至 commit 6ab9162 的全部快照）仍然处于公有领域，任何人依据当
+时的条款所获得的权利不受本次变更影响。MPL-2.0 仅适用于本次变更之后新
+增或修改的内容。
+
+
+其他权利
+--------
+
+本协议仅涵盖源代码。游戏名称、规则文本、美术素材及其他非代码材料不在
+MPL-2.0 的授权范围内，相关权利另行保留。

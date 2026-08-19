@@ -25,7 +25,7 @@
 
 ### `sm/` — 核心游戏引擎
 
-C 语言实现的完整游戏逻辑：洗牌发牌、出牌校验、吃墩计分、自爆判定。Go 侧通过 cgo 调用，使用 `unsafe.Pointer` 零拷贝传递结构体。Go 的 `math/rand` 替换了 C 的随机数生成器。
+C 语言实现的完整游戏逻辑：洗牌发牌、出牌校验、吃墩计分、自爆判定。Go 侧通过 cgo 调用，使用 `unsafe.Pointer` 零拷贝传递结构体。Go 的 `math/rand/v2` 替换了 C 的随机数生成器。
 
 关键类型：`GameConfig`、`GameState`、`Player`、`Card`、`RoundState`
 

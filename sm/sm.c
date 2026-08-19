@@ -229,12 +229,24 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
         memset(&self->cbs, 0, sizeof(kusokurae_game_callbacks_t));
     }
 
-    // Seed the PRNG. You can assign to state later if different seeding is needed
-    time_t *state = (time_t *)&self->rng_state;
-    *state = time(0);
+    // Seed the PRNG. You can assign to rng_state later if different seeding is
+    // needed.
+    //
+    // The seed is narrowed to 32 bits by an integer conversion rather than by a
+    // pointer cast, because urand() reads the state through an int32_t *: a
+    // wider store followed by a narrower load picks whichever half of the value
+    // happens to sit at the front, which is the low half only on little-endian
+    // machines. On a big-endian machine the old code handed urand() the high 32
+    // bits of time(0), i.e. zero, and every game was dealt identically.
+    self->rng_state = 0;
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    // Nanosecond resolution, so that two games started in the same second no
+    // longer share a deal.
+    uint32_t seed = (uint32_t)ts.tv_sec ^ (uint32_t)ts.tv_nsec;
+    memmove(&self->rng_state, &seed, sizeof(seed));
     // Discard the first number that is not quite random.
-    // It will be better if nanosecond clock is used as seed.
-    urand(state);
+    urand(&self->rng_state);
 
     for (int i = 0; i < self->cfg.np; i++) {
         self->players[i].index = i + 1;
