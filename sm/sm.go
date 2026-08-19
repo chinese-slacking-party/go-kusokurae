@@ -28,16 +28,15 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"runtime"
 	"sync/atomic"
-	"time"
 	"unsafe"
 )
 
 //export goRandom
 func goRandom(out *C.int16_t) {
-	rnd := int16(rand.Intn(0x7FFF))
+	rnd := int16(rand.IntN(0x7FFF))
 	*out = C.int16_t(rnd)
 }
 
@@ -56,7 +55,6 @@ func goGameStateCB(self *C.kusokurae_game_state_t, newstate C.int32_t, userdata 
 
 func init() {
 	C.kusokurae_global_init()
-	rand.Seed(time.Now().UnixNano())
 	C.set_prng()
 	callbackMap = make(map[int32]func(GameStatus))
 }
