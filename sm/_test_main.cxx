@@ -1,3 +1,12 @@
+// Standalone driver for the C engine, independent of the Go bindings.
+// The leading underscore keeps the go tool from compiling this file into
+// package sm: cgo provides no macro to detect itself, and a file the tool
+// ignores needs no such guard. It also keeps a C++ toolchain out of the
+// requirements for building the Go package.
+//
+//	gcc -std=gnu11   -I sm -c sm/sm.c -o /tmp/sm.o
+//	g++ -std=gnu++11 -I sm -o /tmp/kusokurae_test sm/_test_main.cxx /tmp/sm.o
+
 #include <cstdio>
 #include <ctime>
 #include "sm.h"
@@ -71,8 +80,6 @@ void dummy_state_cb(kusokurae_game_state_t *self, int32_t newstate, void *userda
     std::printf("dummy_state_cb(%p, %d, %p)\n", self, newstate, userdata);
 }
 
-#ifndef WHATEVER_YOU_WANT_TO_INDICATE_CGO
-
 int main(int argc, char *argv[]) {
     test_init();
 
@@ -85,4 +92,3 @@ int main(int argc, char *argv[]) {
     std::printf("\n%dP has the ghost\n", g.ghost_holder_index + 1);
 }
 
-#endif // WHATEVER_YOU_WANT_TO_INDICATE_CGO
