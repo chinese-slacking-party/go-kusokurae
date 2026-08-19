@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 go build ./...                           # Build all packages (requires C compiler for cgo)
 go test ./...                            # Run all tests
 go test ./sm/                            # Run engine tests only
+go test ./sm/ -run '^$' -bench PRNG      # cgo callback overhead benchmarks
 go run ./experimental/selfplay/          # Terminal self-play client (one human plays all hands)
 go run ./experimental/online/            # HTTP/WebSocket game server (port 8080)
 go build -o server ./experimental/online/
