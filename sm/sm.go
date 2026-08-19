@@ -1,6 +1,11 @@
 package sm
 
 /*
+// C11 is required by kusokurae_game_init(), which seeds the PRNG through
+// timespec_get(). Without this the build silently depends on the compiler
+// default: GCC 5+ defaults to gnu11 or later and happens to work, while
+// -std=c99 fails to even declare struct timespec.
+#cgo CFLAGS: -std=gnu11
 #cgo CFLAGS: -DWHATEVER_YOU_WANT_TO_INDICATE_CGO=1
 #cgo CXXFLAGS: -DWHATEVER_YOU_WANT_TO_INDICATE_CGO=1
 #include "sm.h"
