@@ -73,16 +73,25 @@ static int round_score(kusokurae_game_state_t *g, int *p_bonus_flag) {
             }
         }
     }
-    ret <<= *p_bonus_flag;
+    if (*p_bonus_flag) {
+        // Whoever played the Ghost doubles the round score, negative
+        // included. Do not use a left shift here: shifting a negative
+        // value is undefined behaviour, and this score is often negative.
+        ret *= 2;
+    }
     return ret;
 }
 
 int16_t urand(void *state) {
     // Ref https://bitbucket.org/shlomif/fc-solve/src/dd80a812e8b3aba98a014d939ed77eb1ce764e04/fc-solve/source/board_gen/pi_make_microsoft_freecell_board.c
-    int32_t *istate = (int32_t *)state;
-    *istate = 214013 * (*istate) + 2531011;
-    *istate &= 0x7FFFFFFF;
-    return *istate >> 16;
+    // Unsigned arithmetic: the multiplication overflows by design, and
+    // signed overflow would be undefined behaviour. Wrapping modulo 2^32
+    // reproduces the same bit patterns the signed version produced on
+    // two's complement hardware, so the sequence is unchanged.
+    uint32_t *istate = (uint32_t *)state;
+    *istate = 214013u * (*istate) + 2531011u;
+    *istate &= 0x7FFFFFFFu;
+    return (int16_t)(*istate >> 16);
 }
 
 void game_state_change(kusokurae_game_state_t *g, int32_t newstate) {
