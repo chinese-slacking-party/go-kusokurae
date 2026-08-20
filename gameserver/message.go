@@ -95,9 +95,14 @@ type RoundEndBody struct {
 type GameOverBody struct {
 	FinalScores []PlayerScore `json:"final_scores"`
 
+	// WinnerIdx is the single winner: the lowest seat among those tied for the
+	// highest score. Seat 1 is the human player in a game against bots, so this
+	// matches how Windows Hearts resolves a tie.
+	WinnerIdx int32 `json:"winner_idx"`
+
 	// WinnerIdxs holds every player tied for the highest score, in seat order.
-	// The rules do not define a tie-break, so all of them are reported as
-	// winners rather than picking one arbitrarily. Never empty.
+	// The rules do not define a tie-break, so the full set is reported here and
+	// WinnerIdx is left as the convenience answer. Never empty.
 	WinnerIdxs []int32 `json:"winner_idxs"`
 }
 
