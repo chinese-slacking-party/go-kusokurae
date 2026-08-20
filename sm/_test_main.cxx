@@ -8,6 +8,7 @@
 //	g++ -std=gnu++11 -I sm -o /tmp/kusokurae_test sm/_test_main.cxx /tmp/sm.o
 
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 #include "sm.h"
 #include "sm_internal.h"
@@ -80,6 +81,63 @@ void dummy_state_cb(kusokurae_game_state_t *self, int32_t newstate, void *userda
     std::printf("dummy_state_cb(%p, %d, %p)\n", self, newstate, userdata);
 }
 
+// Plays the game out to the end, always choosing the first playable card.
+static void play_out(kusokurae_game_state_t *g) {
+    while (g->status == KUSOKURAE_STATUS_PLAY) {
+        kusokurae_player_t *p = kusokurae_get_active_player(g);
+        if (p == NULL) {
+            return;
+        }
+        for (int i = 0; i < p->ncards; i++) {
+            if (!kusokurae_card_round_played(p->cards[i]) &&
+                kusokurae_card_is_playable(p->cards[i])) {
+                kusokurae_game_play(g, p->cards[i]);
+                break;
+            }
+        }
+    }
+}
+
+// kusokurae_game_start() must clear the previous tally: sm.h documents starting
+// a new game on a finished state, and the caller's struct is not required to be
+// zeroed in the first place. Returns the number of failures.
+static int test_restart_resets_score() {
+    int failures = 0;
+    kusokurae_game_config_t cfg = { 3 };
+    kusokurae_game_callbacks_t cbs = { NULL, NULL };
+
+    // Case 1: a caller-supplied struct full of garbage.
+    kusokurae_game_state_t g;
+    std::memset(&g, 0xCC, sizeof(g));
+    kusokurae_game_init(&g, &cfg, &cbs);
+    kusokurae_game_start(&g);
+    for (int i = 0; i < cfg.np; i++) {
+        if (g.players[i].score != 0 || g.players[i].cards_taken != 0) {
+            std::printf("FAIL: fresh start, %dP score=%d cards_taken=%d, want 0/0\n",
+                        i + 1, g.players[i].score, g.players[i].cards_taken);
+            failures++;
+        }
+    }
+
+    // Case 2: a second game started on the finished state of the first.
+    play_out(&g);
+    int carried = 0;
+    for (int i = 0; i < cfg.np; i++) {
+        carried += g.players[i].score;
+    }
+    kusokurae_game_start(&g);
+    for (int i = 0; i < cfg.np; i++) {
+        if (g.players[i].score != 0 || g.players[i].cards_taken != 0) {
+            std::printf("FAIL: restart carried over, %dP score=%d cards_taken=%d, want 0/0\n",
+                        i + 1, g.players[i].score, g.players[i].cards_taken);
+            failures++;
+        }
+    }
+    std::printf("test_restart_resets_score: %s (first game totalled %d)\n",
+                failures ? "FAIL" : "ok", carried);
+    return failures;
+}
+
 int main(int argc, char *argv[]) {
     test_init();
 
@@ -90,5 +148,8 @@ int main(int argc, char *argv[]) {
 
     test_start(&g);
     std::printf("\n%dP has the ghost\n", g.ghost_holder_index + 1);
+
+    std::printf("\n");
+    return test_restart_resets_score() ? 1 : 0;
 }
 

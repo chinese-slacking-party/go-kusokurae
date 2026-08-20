@@ -299,6 +299,10 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         self->players[i].active = KUSOKURAE_ROUND_WAITING;
         self->players[i].ncards = counteach;
         self->players[i].busted = 0;
+        // Starting a new game on a finished state is a documented use of
+        // this struct, so the previous game's tally must not carry over.
+        self->players[i].score = 0;
+        self->players[i].cards_taken = 0;
         if (self->players[i].cards[0].suit == KUSOKURAE_SUIT_OTHER ||
             self->players[i].cards[1].suit == KUSOKURAE_SUIT_OTHER ||
             self->players[i].cards[2].suit == KUSOKURAE_SUIT_OTHER) {
