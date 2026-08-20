@@ -118,8 +118,10 @@ func printCards(in []sm.Card) {
 }
 
 func printCardsPretty(in []sm.Card) {
-	curSuit := sm.SuitUnknown
-	first := true
+	var (
+		curSuit sm.Suit = sm.SuitUnknown
+		first           = true
+	)
 	if (len(in) > 0 && in[0].GetSuit() == sm.SuitOther) ||
 		(len(in) > 1 && in[1].GetSuit() == sm.SuitOther) ||
 		(len(in) > 2 && in[2].GetSuit() == sm.SuitOther) {
@@ -136,7 +138,7 @@ func printCardsPretty(in []sm.Card) {
 				first = false
 			}
 			curSuit = suit
-			fmt.Printf("%s：", suitNamesCHS[curSuit])
+			fmt.Printf("%s: ", suitNamesCHS[curSuit])
 		}
 		fmt.Printf("%d ", in[i].GetRank())
 	}
