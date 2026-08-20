@@ -94,7 +94,11 @@ type RoundEndBody struct {
 
 type GameOverBody struct {
 	FinalScores []PlayerScore `json:"final_scores"`
-	WinnerIdx   int32         `json:"winner_idx"`
+
+	// WinnerIdxs holds every player tied for the highest score, in seat order.
+	// The rules do not define a tie-break, so all of them are reported as
+	// winners rather than picking one arbitrarily. Never empty.
+	WinnerIdxs []int32 `json:"winner_idxs"`
 }
 
 type PlayerScore struct {
