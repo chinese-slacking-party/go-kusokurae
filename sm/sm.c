@@ -88,10 +88,10 @@ int16_t urand(void *state) {
     // signed overflow would be undefined behaviour. Wrapping modulo 2^32
     // reproduces the same bit patterns the signed version produced on
     // two's complement hardware, so the sequence is unchanged.
-    uint32_t *istate = (uint32_t *)state;
-    *istate = 214013u * (*istate) + 2531011u;
-    *istate &= 0x7FFFFFFFu;
-    return (int16_t)(*istate >> 16);
+    uint32_t *ustate = (uint32_t *)state;
+    *ustate = 214013u * (*ustate) + 2531011u;
+    *ustate &= 0x7FFFFFFFu;
+    return (int16_t)(*ustate >> 16);
 }
 
 void game_state_change(kusokurae_game_state_t *g, int32_t newstate) {
