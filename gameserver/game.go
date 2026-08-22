@@ -67,9 +67,15 @@ type GameEvent struct {
 }
 
 type Game struct {
-	ID               string
-	StateMutex       sync.Mutex
-	Config           *sm.GameConfig
+	ID     string
+	Config *sm.GameConfig
+
+	// State is owned by the GameFn goroutine: it is created there and every
+	// read and write of it happens on that goroutine's call stack, including
+	// the engine's state-transition callback, which fires from inside Start
+	// and Play. Other goroutines reach the game only by sending on CmdCh, so
+	// nothing here needs a lock. Keep it that way -- if a second goroutine ever
+	// has to touch State, route it through CmdCh rather than reintroducing one.
 	State            *sm.GameState
 	NumPlayers       int32
 	TurnTimeout      time.Duration
@@ -146,7 +152,6 @@ func (g *Game) GameFn(ctx context.Context) {
 	}()
 
 	var err error
-	g.StateMutex.Lock()
 	g.State, err = sm.NewGame(*g.Config, func(state sm.GameStatus) {
 		var status = g.State.GetStatus()
 		if status != state {
@@ -161,7 +166,6 @@ func (g *Game) GameFn(ctx context.Context) {
 			IsDoubled: rs.IsDoubled,
 		}
 	})
-	g.StateMutex.Unlock()
 	if err != nil {
 		log.Printf("GameFn: failed to create game state: %v", err)
 		return
@@ -268,8 +272,6 @@ func (g *Game) emitTurnTimeSync(activeIdx int, remaining time.Duration) {
 // (the turn has ended); false otherwise. Failed moves from the active player
 // re-send YOUR_TURN so the client can retry on the same countdown.
 func (g *Game) handleMove(idx int, msg Message) bool {
-	g.StateMutex.Lock()
-	defer g.StateMutex.Unlock()
 	log.Printf("Game %s recv %d, %s\n", trunc8(g.ID), idx, msg.MsgType)
 	if !g.isActivePlayer(int32(idx)) {
 		g.emit(idx, Message{
@@ -334,8 +336,9 @@ func playCardIndex(body any) (int, bool) {
 }
 
 // playCard plays hand[cardIdx] for playerIdx and broadcasts the result.
-// The caller must hold StateMutex. Returns true if the card was played;
-// on engine rejection an ERROR is emitted to the player and false is returned.
+// Runs on the GameFn goroutine, like everything else that touches State.
+// Returns true if the card was played; on engine rejection an ERROR is emitted
+// to the player and false is returned.
 func (g *Game) playCard(playerIdx, cardIdx int, autoPlay bool) bool {
 	handCards := g.State.GetActivePlayer().GetHandCards()
 	if cardIdx < 0 || cardIdx >= len(handCards) {
@@ -419,8 +422,6 @@ func (g *Game) emitGameResync(playerIdx int) {
 // only change through this goroutine, so a stale activeIdx here would indicate
 // a bug, not a race.
 func (g *Game) handleTurnTimeout(activeIdx int) {
-	g.StateMutex.Lock()
-	defer g.StateMutex.Unlock()
 	if g.State.GetStatus() != sm.StatusPlay {
 		return
 	}
