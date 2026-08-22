@@ -437,20 +437,42 @@ func (g *Game) handleTurnTimeout(activeIdx int) {
 
 func (g *Game) broadcastGameOver() {
 	scores := make([]PlayerScore, g.NumPlayers)
-	var winnerIdx int32
-	var highScore int32
 	for i := int32(0); i < g.NumPlayers; i++ {
-		s := g.State.GetPlayer(i).GetScore()
-		scores[i] = PlayerScore{PlayerIdx: i, Score: int32(s)}
-		if int32(s) > highScore {
-			highScore = int32(s)
-			winnerIdx = i
-		}
+		scores[i] = PlayerScore{PlayerIdx: i, Score: int32(g.State.GetPlayer(i).GetScore())}
 	}
+	winners := determineWinners(scores)
 	g.emit(-1, Message{
 		MsgType: MSG_TYPE_GAME_OVER,
-		MsgBody: &GameOverBody{FinalScores: scores, WinnerIdx: winnerIdx},
+		MsgBody: &GameOverBody{
+			FinalScores: scores,
+			WinnerIdx:   winners[0],
+			WinnerIdxs:  winners,
+		},
 	})
+}
+
+// determineWinners returns every player tied for the highest score, in seat
+// order, so the first element is the lowest-numbered winner. Scores are
+// routinely negative (Shit cards are worth -1 each, and the
+// Ghost doubles a losing trick), so the running maximum must start below any
+// reachable score rather than at zero.
+func determineWinners(scores []PlayerScore) []int32 {
+	if len(scores) == 0 {
+		return nil
+	}
+	highScore := int32(math.MinInt32)
+	for _, ps := range scores {
+		if ps.Score > highScore {
+			highScore = ps.Score
+		}
+	}
+	winners := make([]int32, 0, len(scores))
+	for _, ps := range scores {
+		if ps.Score == highScore {
+			winners = append(winners, ps.PlayerIdx)
+		}
+	}
+	return winners
 }
 
 func (g *Game) isActivePlayer(idx int32) bool {

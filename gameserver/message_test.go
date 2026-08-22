@@ -59,10 +59,22 @@ func TestGameOverBodyJSON(t *testing.T) {
 	body := GameOverBody{
 		FinalScores: []PlayerScore{{PlayerIdx: 1, Score: 15}, {PlayerIdx: 2, Score: -3}},
 		WinnerIdx:   1,
+		WinnerIdxs:  []int32{1},
 	}
 	b, err := json.Marshal(body)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"final_scores":[{"player_idx":1,"score":15},{"player_idx":2,"score":-3}],"winner_idx":1}`, string(b))
+	assert.JSONEq(t, `{"final_scores":[{"player_idx":1,"score":15},{"player_idx":2,"score":-3}],"winner_idx":1,"winner_idxs":[1]}`, string(b))
+
+	// A tie keeps winner_idx as the lowest seat and lists everyone in
+	// winner_idxs, so a client that reads either field stays correct.
+	tied := GameOverBody{
+		FinalScores: []PlayerScore{{PlayerIdx: 0, Score: 2}, {PlayerIdx: 1, Score: 2}},
+		WinnerIdx:   0,
+		WinnerIdxs:  []int32{0, 1},
+	}
+	b, err = json.Marshal(tied)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"final_scores":[{"player_idx":0,"score":2},{"player_idx":1,"score":2}],"winner_idx":0,"winner_idxs":[0,1]}`, string(b))
 }
 
 func TestErrorBodyJSON(t *testing.T) {

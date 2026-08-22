@@ -23,14 +23,14 @@ func TestPRNGMaxMatchesC(t *testing.T) {
 }
 
 // TestCPRNGRange documents the contract the Go replacement has to honour: the
-// engine's own PRNG yields the closed range [0, MS_RAND_MAX].
+// engine's own PRNG yields the closed range [0, KUSOKURAE_RAND_MAX].
 func TestCPRNGRange(t *testing.T) {
 	state := int32(1)
 	lo, hi := prngMax, 0
 	for i := 0; i < randSamples; i++ {
 		v := int(nativeRandom(&state))
 		if v < 0 || v > prngMax {
-			t.Fatalf("urand() returned %d, want [0, %d]", v, prngMax)
+			t.Fatalf("ms_rand() returned %d, want [0, %d]", v, prngMax)
 		}
 		lo, hi = min(lo, v), max(hi, v)
 	}
@@ -173,7 +173,7 @@ func BenchmarkPRNGGoOnly(b *testing.B) {
 // no language boundary is crossed. The delta against GoOnly is the cost of the
 // callback signature itself (C type conversion plus the pointer write).
 func BenchmarkPRNGGoRandom(b *testing.B) {
-	var sink int16
+	var sink int
 	for i := 0; i < b.N; i++ {
 		sink = goRandomValue()
 	}
@@ -185,7 +185,7 @@ func BenchmarkPRNGGoRandom(b *testing.B) {
 // essentially the price of a single Go -> C call.
 func BenchmarkPRNGNativeInC(b *testing.B) {
 	state := int32(1)
-	var sink int16
+	var sink int
 	for i := 0; i < b.N; i++ {
 		sink = nativeRandom(&state)
 	}
@@ -196,7 +196,7 @@ func BenchmarkPRNGNativeInC(b *testing.B) {
 // pays for every dice roll: a call into C plus a callback back into Go, the
 // latter being the expensive direction.
 func BenchmarkPRNGCgoRoundTrip(b *testing.B) {
-	var sink int16
+	var sink int
 	for i := 0; i < b.N; i++ {
 		sink = randomViaC()
 	}

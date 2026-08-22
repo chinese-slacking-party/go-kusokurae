@@ -8,9 +8,9 @@ package sm
 #cgo CFLAGS: -std=gnu11
 #include "sm.h"
 
-extern void goRandom(int16_t *);
-static inline int16_t cgo_random(void *state) {
-	int16_t ret;
+extern void goRandom(int *);
+static inline int cgo_random(void *state) {
+	int ret;
 	goRandom(&ret);
 	return ret;
 }
@@ -38,13 +38,12 @@ import (
 )
 
 //export goRandom
-func goRandom(out *C.int16_t) {
-	// The engine expects the closed range [0, MS_RAND_MAX] (0x8000 distinct
-	// values), same as the C default PRNG urand(). sample() in sm.c derives its
-	// acceptance threshold from MS_RAND_MAX + 1, so a narrower range biases the
-	// deal.
-	rnd := int16(rand.IntN(0x8000))
-	*out = C.int16_t(rnd)
+func goRandom(out *C.int) {
+	// The engine expects the closed range [0, KUSOKURAE_RAND_MAX] (0x8000
+	// distinct values), same as the C default PRNG ms_rand(). sample() in sm.c
+	// derives its acceptance threshold from KUSOKURAE_RAND_MAX + 1, so a
+	// narrower range biases the deal.
+	*out = C.int(rand.IntN(0x8000))
 }
 
 //export goGameStateCB

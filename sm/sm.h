@@ -5,11 +5,29 @@
 extern "C" {
 #endif
 
+#include <assert.h>
+#include <limits.h>
 #include <stdint.h>
 
 #define KUSOKURAE_DECK_SIZE         33
 #define KUSOKURAE_MAX_HAND_CARDS    22
 #define KUSOKURAE_MAX_PLAYERS       4
+
+// Inclusive upper bound of the values a random number generator must
+// produce. See kusokurae_set_prng().
+#define KUSOKURAE_RAND_MAX          32767
+
+// The generator returns int, so the range asked of it has to fit there. C
+// only guarantees INT_MAX >= 32767, which is exactly why the standard library
+// sets RAND_MAX >= 32767 and no higher: the bound above sits on that floor
+// and is portable everywhere, including an implementation with a 16-bit int.
+// Raising it would quietly depend on a wider one.
+//
+// static_assert rather than _Static_assert: <assert.h> defines it as a macro
+// in C11 and later, and it is a keyword in C++11 and later, so this one
+// spelling works for every consumer of this header.
+static_assert(KUSOKURAE_RAND_MAX <= INT_MAX,
+              "KUSOKURAE_RAND_MAX does not fit the int the PRNG returns");
 
 struct kusokurae_game_state_t; // Forward declaration
 
@@ -148,7 +166,11 @@ typedef struct kusokurae_game_state_t {
     // players[n]'s move is placed in current_round[n].
     kusokurae_card_t current_round[KUSOKURAE_MAX_PLAYERS];
 
-    // 8 bytes of state for random number generator.
+    // 8 bytes of state for the random number generator, private to this
+    // game. Keeping the state here rather than in a global is what lets one
+    // game state per room, each driven by a single thread, run without any
+    // locking. kusokurae_game_init() seeds the low 32 bits of it; a
+    // replacement generator may use all 8 bytes however it likes.
     uint64_t rng_state;
 
     // Game-specific callbacks should be put at the bottom, because their sizes
@@ -177,7 +199,32 @@ typedef struct {
 
 void kusokurae_global_init();
 
-void kusokurae_set_prng(int16_t (*fn)(void *));
+// kusokurae_set_prng installs the generator used to deal cards. fn receives
+// a pointer to the rng_state field of the game being dealt, and must return
+// a uniformly distributed value in the closed range [0, KUSOKURAE_RAND_MAX].
+// Passing NULL leaves the current generator in place.
+//
+// The return type is int rather than a type exactly as wide as the range,
+// mirroring the C library, where rand() returns int and RAND_MAX carries the
+// range on its own. That states the range in one place instead of two that
+// can disagree, leaves room to raise KUSOKURAE_RAND_MAX without touching
+// this signature, and lets a generator covering [0, 65535] say so instead of
+// silently handing back negative numbers.
+//
+// Return values outside the range are not rejected. Dealing stays memory safe
+// and every player still receives the right number of cards -- sample() in
+// sm.c bounds the selection so that holds for any generator -- but the deal
+// is no longer uniform: values below the range are always taken and values
+// above it are always passed over.
+//
+// The C library's rand() is deliberately not used: it keeps one global state
+// and is not thread safe. The convention here is one game state per room,
+// each driven by a single thread, so the generator is handed per-game state
+// instead and games never contend. A replacement generator is expected to
+// honour that and keep whatever it needs in the pointer it is given rather
+// than in globals -- or, like the Go binding does, to be safe to call from
+// several games at once.
+void kusokurae_set_prng(int (*fn)(void *));
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
                                       kusokurae_game_config_t *cfg,

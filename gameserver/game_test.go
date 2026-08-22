@@ -90,3 +90,27 @@ func TestValidateTurnSyncIntervalSec(t *testing.T) {
 	assert.Error(t, ValidateTurnSyncIntervalSec(61, 120))
 	assert.Error(t, ValidateTurnSyncIntervalSec(-1, 30))
 }
+
+func TestDetermineWinners(t *testing.T) {
+	sc := func(vals ...int32) []PlayerScore {
+		out := make([]PlayerScore, len(vals))
+		for i, v := range vals {
+			out[i] = PlayerScore{PlayerIdx: int32(i), Score: v}
+		}
+		return out
+	}
+
+	// A four-player deck is worth 1 point before the Ghost doubles a trick, so
+	// the whole table can finish at or below zero. The old implementation
+	// seeded its running maximum with 0 and reported seat 1 in that case.
+	assert.Equal(t, []int32{1, 2, 3}, determineWinners(sc(-2, 0, 0, 0)))
+	assert.Equal(t, []int32{2}, determineWinners(sc(-3, -2, -1, -4)))
+	assert.Equal(t, []int32{0}, determineWinners(sc(-1, -2, -3)))
+
+	// Ties are reported in full, in seat order.
+	assert.Equal(t, []int32{0, 1, 2}, determineWinners(sc(0, 0, 0)))
+	assert.Equal(t, []int32{0, 2}, determineWinners(sc(2, 1, 2)))
+	assert.Equal(t, []int32{3}, determineWinners(sc(0, 1, 1, 4)))
+
+	assert.Nil(t, determineWinners(nil))
+}

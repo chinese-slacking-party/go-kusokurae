@@ -6,7 +6,7 @@
 #include "sm_internal.h"
 
 static kusokurae_card_t DECK[KUSOKURAE_DECK_SIZE];
-static int16_t (*rng)(void *);
+static int (*rng)(void *);
 
 static void sample(void *ptr, size_t count, size_t size,
                    size_t wanted, void *pchosen, void *pdiscarded,
@@ -14,12 +14,27 @@ static void sample(void *ptr, size_t count, size_t size,
     char *psrc = (char *)ptr, *pdst = (char *)pchosen, *prej = (char *)pdiscarded;
     size_t rcount = count, rwanted = wanted; // r for remaining
     int64_t threshold;
-    int16_t dice;
+    int dice;
     while (rcount > 0) {
         dice = rng(rng_state);
-        threshold = (MS_RAND_MAX + 1ULL) * rwanted / rcount;
+        threshold = (KUSOKURAE_RAND_MAX + 1ULL) * rwanted / rcount;
         //printf("%ld wanted, %ld remaining, %lld/%lld\n", rwanted, rcount, dice, threshold);
-        if (dice < threshold) {
+        // The two bounds around the dice test are what make "exactly
+        // wanted items are chosen" hold for any generator, rather than
+        // only for one that honours the contract. Both are no-ops when it
+        // does: a draw in [0, KUSOKURAE_RAND_MAX] already fails against
+        // the zero threshold that rwanted == 0 produces, and already
+        // passes the KUSOKURAE_RAND_MAX + 1 threshold that rwanted ==
+        // rcount produces.
+        //
+        // They matter for the two ways a generator can leave the range. A
+        // negative draw compares below every threshold, so it would keep
+        // being selected after the hand is full, running past pchosen and
+        // taking rwanted, a size_t, below zero. A draw above
+        // KUSOKURAE_RAND_MAX compares above thresholds it should have
+        // passed, so it would leave the hand short with untouched slots
+        // still in it.
+        if (rwanted >= rcount || (rwanted > 0 && dice < threshold)) {
             memmove(pdst, psrc, size);
             pdst += size;
             rwanted--;
@@ -73,16 +88,25 @@ static int round_score(kusokurae_game_state_t *g, int *p_bonus_flag) {
             }
         }
     }
-    ret <<= *p_bonus_flag;
+    if (*p_bonus_flag) {
+        // Whoever played the Ghost doubles the round score, negative
+        // included. Do not use a left shift here: shifting a negative
+        // value is undefined behaviour, and this score is often negative.
+        ret *= 2;
+    }
     return ret;
 }
 
-int16_t urand(void *state) {
+int ms_rand(void *state) {
     // Ref https://bitbucket.org/shlomif/fc-solve/src/dd80a812e8b3aba98a014d939ed77eb1ce764e04/fc-solve/source/board_gen/pi_make_microsoft_freecell_board.c
-    int32_t *istate = (int32_t *)state;
-    *istate = 214013 * (*istate) + 2531011;
-    *istate &= 0x7FFFFFFF;
-    return *istate >> 16;
+    // Unsigned arithmetic: the multiplication overflows by design, and
+    // signed overflow would be undefined behaviour. Wrapping modulo 2^32
+    // reproduces the same bit patterns the signed version produced on
+    // two's complement hardware, so the sequence is unchanged.
+    uint32_t *ustate = (uint32_t *)state;
+    *ustate = 214013u * (*ustate) + 2531011u;
+    *ustate &= 0x7FFFFFFFu;
+    return (int)(*ustate >> 16);
 }
 
 void game_state_change(kusokurae_game_state_t *g, int32_t newstate) {
@@ -202,10 +226,10 @@ void kusokurae_global_init() {
     }
 
     // Use the default PRNG
-    rng = &urand;
+    rng = &ms_rand;
 }
 
-void kusokurae_set_prng(int16_t (*fn)(void *)) {
+void kusokurae_set_prng(int (*fn)(void *)) {
     if (fn != NULL) {
         rng = fn;
     }
@@ -233,11 +257,11 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
     // needed.
     //
     // The seed is narrowed to 32 bits by an integer conversion rather than by a
-    // pointer cast, because urand() reads the state through an int32_t *: a
+    // pointer cast, because ms_rand() reads the state through a uint32_t *: a
     // wider store followed by a narrower load picks whichever half of the value
     // happens to sit at the front, which is the low half only on little-endian
-    // machines. On a big-endian machine the old code handed urand() the high 32
-    // bits of time(0), i.e. zero, and every game was dealt identically.
+    // machines. On a big-endian machine the old code handed ms_rand() the high
+    // 32 bits of time(0), i.e. zero, and every game was dealt identically.
     self->rng_state = 0;
     struct timespec ts;
     timespec_get(&ts, TIME_UTC);
@@ -246,7 +270,7 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
     uint32_t seed = (uint32_t)ts.tv_sec ^ (uint32_t)ts.tv_nsec;
     memmove(&self->rng_state, &seed, sizeof(seed));
     // Discard the first number that is not quite random.
-    urand(&self->rng_state);
+    ms_rand(&self->rng_state);
 
     for (int i = 0; i < self->cfg.np; i++) {
         self->players[i].index = i + 1;
@@ -290,6 +314,10 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         self->players[i].active = KUSOKURAE_ROUND_WAITING;
         self->players[i].ncards = counteach;
         self->players[i].busted = 0;
+        // Starting a new game on a finished state is a documented use of
+        // this struct, so the previous game's tally must not carry over.
+        self->players[i].score = 0;
+        self->players[i].cards_taken = 0;
         if (self->players[i].cards[0].suit == KUSOKURAE_SUIT_OTHER ||
             self->players[i].cards[1].suit == KUSOKURAE_SUIT_OTHER ||
             self->players[i].cards[2].suit == KUSOKURAE_SUIT_OTHER) {
