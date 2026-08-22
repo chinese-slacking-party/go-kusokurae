@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <assert.h>
+#include <limits.h>
 #include <stdint.h>
 
 #define KUSOKURAE_DECK_SIZE         33
@@ -14,6 +16,18 @@ extern "C" {
 // Inclusive upper bound of the values a random number generator must
 // produce. See kusokurae_set_prng().
 #define KUSOKURAE_RAND_MAX          32767
+
+// The generator returns int, so the range asked of it has to fit there. C
+// only guarantees INT_MAX >= 32767, which is exactly why the standard library
+// sets RAND_MAX >= 32767 and no higher: the bound above sits on that floor
+// and is portable everywhere, including an implementation with a 16-bit int.
+// Raising it would quietly depend on a wider one.
+//
+// static_assert rather than _Static_assert: <assert.h> defines it as a macro
+// in C11 and later, and it is a keyword in C++11 and later, so this one
+// spelling works for every consumer of this header.
+static_assert(KUSOKURAE_RAND_MAX <= INT_MAX,
+              "KUSOKURAE_RAND_MAX does not fit the int the PRNG returns");
 
 struct kusokurae_game_state_t; // Forward declaration
 
