@@ -39,9 +39,9 @@ import (
 
 //export goRandom
 func goRandom(out *C.int16_t) {
-	// The engine expects the closed range [0, MS_RAND_MAX] (0x8000 distinct
-	// values), same as the C default PRNG urand(). sample() in sm.c derives its
-	// acceptance threshold from MS_RAND_MAX + 1, so a narrower range biases the
+	// The engine expects the closed range [0, KUSOKURAE_RAND_MAX] (0x8000 distinct
+	// values), same as the C default PRNG ms_rand(). sample() in sm.c derives its
+	// acceptance threshold from KUSOKURAE_RAND_MAX + 1, so a narrower range biases the
 	// deal.
 	rnd := int16(rand.IntN(0x8000))
 	*out = C.int16_t(rnd)

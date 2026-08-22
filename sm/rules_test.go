@@ -74,7 +74,7 @@ func TestGhostDoublesRoundScore(t *testing.T) {
 
 // TestNativePRNGGoldenSequence pins the engine's own PRNG to the sequence
 // Microsoft's rand() produces from seed 1, which is what sm.c set out to
-// replicate. It guards the unsigned rewrite of urand() against any change in
+// replicate. It guards the unsigned rewrite of ms_rand() against any change in
 // the values it yields.
 func TestNativePRNGGoldenSequence(t *testing.T) {
 	want := []int16{41, 18467, 6334, 26500, 19169, 15724, 11478, 29358, 26962, 24464, 5705, 28145}

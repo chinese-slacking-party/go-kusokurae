@@ -1,7 +1,7 @@
 // Plays complete games so a sanitizer build has something to chew on. Prints
 // nothing of interest by itself — the point is the diagnostics the sanitizer
 // emits. Two undefined behaviours were found this way: a left shift of the
-// negative round score in round_score(), and signed overflow in urand(). Both
+// negative round score in round_score(), and signed overflow in ms_rand(). Both
 // are fixed on branch fix/round-score-ub; against a tree without that fix this
 // program still reports them, which is the intended demonstration.
 //

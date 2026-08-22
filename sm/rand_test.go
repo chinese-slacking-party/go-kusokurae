@@ -23,14 +23,14 @@ func TestPRNGMaxMatchesC(t *testing.T) {
 }
 
 // TestCPRNGRange documents the contract the Go replacement has to honour: the
-// engine's own PRNG yields the closed range [0, MS_RAND_MAX].
+// engine's own PRNG yields the closed range [0, KUSOKURAE_RAND_MAX].
 func TestCPRNGRange(t *testing.T) {
 	state := int32(1)
 	lo, hi := prngMax, 0
 	for i := 0; i < randSamples; i++ {
 		v := int(nativeRandom(&state))
 		if v < 0 || v > prngMax {
-			t.Fatalf("urand() returned %d, want [0, %d]", v, prngMax)
+			t.Fatalf("ms_rand() returned %d, want [0, %d]", v, prngMax)
 		}
 		lo, hi = min(lo, v), max(hi, v)
 	}

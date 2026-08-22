@@ -40,9 +40,9 @@ static double now(void) {
 
 // Draws a uniform value in [0, bound) without modulo bias.
 static int roll(void *state, int bound, int *draws) {
-    int limit = (MS_RAND_MAX + 1) / bound * bound, r;
+    int limit = (KUSOKURAE_RAND_MAX + 1) / bound * bound, r;
     do {
-        r = urand(state);
+        r = ms_rand(state);
         (*draws)++;
     } while (r >= limit);
     return r % bound;
@@ -60,9 +60,9 @@ static int deal_selection(void *state) {
         kusokurae_card_t *psrc = pass[k].src, *pdst = pass[k].dst, *prej = pass[k].rej;
         size_t rc = pass[k].count, rw = pass[k].wanted;
         while (rc > 0) {
-            int16_t dice = urand(state);
+            int16_t dice = ms_rand(state);
             draws++;
-            if (dice < (int64_t)(MS_RAND_MAX + 1ULL) * rw / rc) {
+            if (dice < (int64_t)(KUSOKURAE_RAND_MAX + 1ULL) * rw / rc) {
                 *pdst++ = *psrc;
                 rw--;
             } else {

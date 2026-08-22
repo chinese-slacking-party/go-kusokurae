@@ -11,6 +11,10 @@ extern "C" {
 #define KUSOKURAE_MAX_HAND_CARDS    22
 #define KUSOKURAE_MAX_PLAYERS       4
 
+// Inclusive upper bound of the values a random number generator must
+// produce. See kusokurae_set_prng().
+#define KUSOKURAE_RAND_MAX          32767
+
 struct kusokurae_game_state_t; // Forward declaration
 
 typedef void (*state_transition_cb)(struct kusokurae_game_state_t *self, int32_t newstate, void *userdata);
@@ -148,7 +152,11 @@ typedef struct kusokurae_game_state_t {
     // players[n]'s move is placed in current_round[n].
     kusokurae_card_t current_round[KUSOKURAE_MAX_PLAYERS];
 
-    // 8 bytes of state for random number generator.
+    // 8 bytes of state for the random number generator, private to this
+    // game. Keeping the state here rather than in a global is what lets one
+    // game state per room, each driven by a single thread, run without any
+    // locking. kusokurae_game_init() seeds the low 32 bits of it; a
+    // replacement generator may use all 8 bytes however it likes.
     uint64_t rng_state;
 
     // Game-specific callbacks should be put at the bottom, because their sizes
@@ -177,6 +185,18 @@ typedef struct {
 
 void kusokurae_global_init();
 
+// kusokurae_set_prng installs the generator used to deal cards. fn receives
+// a pointer to the rng_state field of the game being dealt, and must return
+// a uniformly distributed value in the closed range [0, KUSOKURAE_RAND_MAX].
+// Passing NULL leaves the current generator in place.
+//
+// The C library's rand() is deliberately not used: it keeps one global state
+// and is not thread safe. The convention here is one game state per room,
+// each driven by a single thread, so the generator is handed per-game state
+// instead and games never contend. A replacement generator is expected to
+// honour that and keep whatever it needs in the pointer it is given rather
+// than in globals -- or, like the Go binding does, to be safe to call from
+// several games at once.
 void kusokurae_set_prng(int16_t (*fn)(void *));
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,

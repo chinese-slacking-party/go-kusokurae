@@ -25,7 +25,7 @@ static int16_t call_bridge_from_c(void) {
 }
 
 static void use_native_prng(void) {
-	kusokurae_set_prng(&urand);
+	kusokurae_set_prng(&ms_rand);
 }
 
 // Installs a bridge equivalent to the one sm.go's init() installs.
@@ -37,9 +37,9 @@ import "C"
 
 import "unsafe"
 
-// cPRNGMax is MS_RAND_MAX, the inclusive upper bound of the engine's own PRNG
-// and therefore of any replacement installed through kusokurae_set_prng.
-const cPRNGMax = C.MS_RAND_MAX
+// cPRNGMax is KUSOKURAE_RAND_MAX, the inclusive upper bound every generator
+// installed through kusokurae_set_prng must honour.
+const cPRNGMax = C.KUSOKURAE_RAND_MAX
 
 // goRandomValue calls the Go half of the bridge directly, without crossing any
 // language boundary.
@@ -51,7 +51,7 @@ func goRandomValue() int16 {
 
 // nativeRandom calls the engine's own PRNG (one Go -> C crossing).
 func nativeRandom(state *int32) int16 {
-	return int16(C.urand(unsafe.Pointer(state)))
+	return int16(C.ms_rand(unsafe.Pointer(state)))
 }
 
 // randomViaC goes Go -> C -> Go, the full round trip the engine pays for.

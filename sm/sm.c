@@ -17,7 +17,7 @@ static void sample(void *ptr, size_t count, size_t size,
     int16_t dice;
     while (rcount > 0) {
         dice = rng(rng_state);
-        threshold = (MS_RAND_MAX + 1ULL) * rwanted / rcount;
+        threshold = (KUSOKURAE_RAND_MAX + 1ULL) * rwanted / rcount;
         //printf("%ld wanted, %ld remaining, %lld/%lld\n", rwanted, rcount, dice, threshold);
         if (dice < threshold) {
             memmove(pdst, psrc, size);
@@ -82,7 +82,7 @@ static int round_score(kusokurae_game_state_t *g, int *p_bonus_flag) {
     return ret;
 }
 
-int16_t urand(void *state) {
+int16_t ms_rand(void *state) {
     // Ref https://bitbucket.org/shlomif/fc-solve/src/dd80a812e8b3aba98a014d939ed77eb1ce764e04/fc-solve/source/board_gen/pi_make_microsoft_freecell_board.c
     // Unsigned arithmetic: the multiplication overflows by design, and
     // signed overflow would be undefined behaviour. Wrapping modulo 2^32
@@ -211,7 +211,7 @@ void kusokurae_global_init() {
     }
 
     // Use the default PRNG
-    rng = &urand;
+    rng = &ms_rand;
 }
 
 void kusokurae_set_prng(int16_t (*fn)(void *)) {
@@ -242,11 +242,11 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
     // needed.
     //
     // The seed is narrowed to 32 bits by an integer conversion rather than by a
-    // pointer cast, because urand() reads the state through an int32_t *: a
+    // pointer cast, because ms_rand() reads the state through a uint32_t *: a
     // wider store followed by a narrower load picks whichever half of the value
     // happens to sit at the front, which is the low half only on little-endian
-    // machines. On a big-endian machine the old code handed urand() the high 32
-    // bits of time(0), i.e. zero, and every game was dealt identically.
+    // machines. On a big-endian machine the old code handed ms_rand() the high
+    // 32 bits of time(0), i.e. zero, and every game was dealt identically.
     self->rng_state = 0;
     struct timespec ts;
     timespec_get(&ts, TIME_UTC);
@@ -255,7 +255,7 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
     uint32_t seed = (uint32_t)ts.tv_sec ^ (uint32_t)ts.tv_nsec;
     memmove(&self->rng_state, &seed, sizeof(seed));
     // Discard the first number that is not quite random.
-    urand(&self->rng_state);
+    ms_rand(&self->rng_state);
 
     for (int i = 0; i < self->cfg.np; i++) {
         self->players[i].index = i + 1;
