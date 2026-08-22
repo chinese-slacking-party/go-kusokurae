@@ -89,9 +89,9 @@ typedef enum {
 
 typedef struct {
     // Position in the new, unshuffled deck, and the order a hand is laid out
-    // in. Higher value precedes lower. This is presentation only -- a trick
-    // is decided by rank alone, so the Ghost outranks the Angels while
-    // sitting behind them here, at 31 against their 33 and 32.
+    // in. Higher value precedes lower, and it now agrees with rank order: the
+    // Ghost leads at 33, the two Angels follow at 32 and 31. A hand kept in
+    // deck order is therefore already sorted strongest first.
     // 0 indicates invalid data (unfilled slot).
     // Should be filled during global initialization and copied afterwards.
     uint32_t display_order;
