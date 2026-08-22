@@ -82,10 +82,10 @@ static int round_score(kusokurae_game_state_t *g, int *p_bonus_flag) {
             if (i == g->high_ranker_index) {
                 (*p_bonus_flag)++;
             }
+            break;
         default:
-            if (g->current_round[i].suit != KUSOKURAE_SUIT_OTHER) {
-                ret += g->current_round[i].suit;
-            }
+            ret += g->current_round[i].suit;
+            break;
         }
     }
     if (*p_bonus_flag) {
