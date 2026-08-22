@@ -111,12 +111,18 @@ typedef struct {
     // 1 - active (playing), 2 - already played
     int32_t active;
 
-    // 22 card slots (reserved for playing with 2 decks)
+    // Everything dealt to this player, played and unplayed alike, in deck
+    // order. 22 slots (reserved for playing with 2 decks).
+    //
+    // A played card is not removed: it stays in place and its flags record
+    // the round it went out in, which is what makes the whole game
+    // reconstructible from the final state. Use
+    // kusokurae_card_round_played() to tell the two apart.
     kusokurae_card_t cards[KUSOKURAE_MAX_HAND_CARDS];
 
-    // The number of valid cards in hand.
-    // When a card is played, it is removed from hand and all following cards
-    //   should be moved ahead to keep the array consecutive.
+    // How many of those slots were dealt. Fixed for the whole game, since
+    // nothing is ever removed -- the engine relies on that and reads it as
+    // "cards dealt per player" when deciding the game is over.
     int32_t ncards;
 
     // If the player wins a round, he/she takes all cards played in that round.

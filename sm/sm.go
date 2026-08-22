@@ -273,13 +273,18 @@ func (p *Player) String() string {
 	return fmt.Sprintf("%dP - %d cards, %d points\nCardset: %v\n", p.index, p.cardsTaken, p.score, p.GetCards())
 }
 
-// GetCards returns a slice holding the player's cards. It operates in constant
-// time.
+// GetCards returns everything dealt to the player, cards already played
+// included -- they keep their slot and carry the round they went out in, so
+// this is the view to reconstruct a game from. Use GetHandCards for the cards
+// still in hand. It operates in constant time.
 func (p *Player) GetCards() []Card {
 	return p.allCards[0:p.numCards]
 }
 
-// GetHandCards return the player's cards IN HAND (not played yet).
+// GetHandCards returns the cards still in hand, already played ones filtered
+// out and the rest closed up, so the result is a contiguous slice that can be
+// indexed directly. That index is what the gameserver protocol exchanges with
+// clients; the layout of the underlying array never leaves this package.
 func (p *Player) GetHandCards() (ret []Card) {
 	for i := 0; i < int(p.numCards); i++ {
 		if p.allCards[i].RoundPlayed() == 0 {
