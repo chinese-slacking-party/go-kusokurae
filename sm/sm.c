@@ -204,8 +204,11 @@ void kusokurae_global_init() {
         DECK[i].display_order -= i;
     }
     // Place the Ghost on 3rd place, so as to be able to simply skip the first
-    // card (one of the 2 Angels) when dealing a 4-player game.
+    // card (one of the 2 Angels) when dealing a 4-player game. It therefore
+    // sits below the Angels in deck order while outranking them in play --
+    // the two orderings are independent, since only rank decides a trick.
     DECK[2].suit = KUSOKURAE_SUIT_OTHER;
+    DECK[2].rank = 11;
 
     kusokurae_card_suit_t cursuit = KUSOKURAE_SUIT_BAOZI;
     int currank = 9;

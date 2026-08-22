@@ -16,7 +16,7 @@
 static int failures, xfailures, xpasses;
 
 #define ANGEL    (kusokurae_card_t){33, KUSOKURAE_SUIT_BAOZI, 10, MASK_PLAYABLE}
-#define GHOST    (kusokurae_card_t){31, KUSOKURAE_SUIT_OTHER, 10, MASK_PLAYABLE}
+#define GHOST    (kusokurae_card_t){31, KUSOKURAE_SUIT_OTHER, 11, MASK_PLAYABLE}
 #define BAOZI(r) (kusokurae_card_t){(unsigned)(21 + (r)), KUSOKURAE_SUIT_BAOZI,   (r), MASK_PLAYABLE}
 #define XIANG(r) (kusokurae_card_t){(unsigned)( 1 + (r)), KUSOKURAE_SUIT_XIANG,   (r), MASK_PLAYABLE}
 
@@ -98,12 +98,10 @@ int main(void) {
     check_trick("规则 6", "无鬼牌则不翻倍", 0, 3,
                 (kusokurae_card_t[]){BAOZI(9), XIANG(5), XIANG(3)}, 0, 1 + -1 + -1);
 
-    // 规则 3 把鬼牌排在天使之上，但引擎给两者相同的 rank（10），于是按
-    // “先出者为大”归了天使。见对话记录中的问题 1。
-    check_trick("规则 3", "鬼牌大于天使（后出也应吃墩）", 1, 3,
+    check_trick("规则 3", "鬼牌大于天使（后出也应吃墩）", 0, 3,
                 (kusokurae_card_t[]){ANGEL, GHOST, BAOZI(5)}, 1, (1 + 0 + 1) * 2);
 
-    check_trick("规则 6", "鬼牌后出时的翻倍", 1, 3,
+    check_trick("规则 6", "鬼牌后出时的翻倍", 0, 3,
                 (kusokurae_card_t[]){ANGEL, GHOST, XIANG(3)}, 1, (1 + 0 + -1) * 2);
 
     printf("\n%d 项失败，%d 项已知缺陷，%d 项意外通过\n", failures, xfailures, xpasses);

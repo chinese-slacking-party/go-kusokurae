@@ -10,7 +10,7 @@ import (
 const maskPlayable = 0x80
 
 func angelCard() Card { return Card{displayOrder: 33, suit: SuitBaozi, rank: 10, flags: maskPlayable} }
-func ghostCard() Card { return Card{displayOrder: 31, suit: SuitOther, rank: 10, flags: maskPlayable} }
+func ghostCard() Card { return Card{displayOrder: 31, suit: SuitOther, rank: 11, flags: maskPlayable} }
 func baozi(rank int32) Card {
 	return Card{displayOrder: uint32(30 - (9 - rank)), suit: SuitBaozi, rank: rank, flags: maskPlayable}
 }

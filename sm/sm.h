@@ -78,8 +78,10 @@ typedef enum {
 } kusokurae_card_suit_t;
 
 typedef struct {
-    // Sequence in the new, unshuffled deck. Higher value precedes lower
-    // e.g. The newbiest card, Ghost, has a display_order of 33.
+    // Position in the new, unshuffled deck, and the order a hand is laid out
+    // in. Higher value precedes lower. This is presentation only -- a trick
+    // is decided by rank alone, so the Ghost outranks the Angels while
+    // sitting behind them here, at 31 against their 33 and 32.
     // 0 indicates invalid data (unfilled slot).
     // Should be filled during global initialization and copied afterwards.
     uint32_t display_order;
@@ -87,9 +89,9 @@ typedef struct {
     // Declared above (kusokurae_card_suit_t)
     int32_t suit;
 
-    // 0~10 for BAOZI
-    // 0~9 for YOUTIAO and XIANG
-    // 10 for OTHER
+    // 0~9 for the numbered cards of every suit, 10 for the two Angels (which
+    // are BAOZI, so they also score +1), and 11 for the Ghost, which beats
+    // everything.
     int32_t rank;
 
     // Bits 0~6: round index (counting from 1) in which the card is played
