@@ -46,9 +46,9 @@ static int failures;
 
 static void check_deal(const char *name, int (*prng)(void *), int np) {
     int cards_each = (np == 4 ? KUSOKURAE_DECK_SIZE - 1 : KUSOKURAE_DECK_SIZE) / np;
-    // A four-player deck drops DECK[0], the Angel with the highest display
-    // order, so the dealt cards run 1..32 rather than 1..33.
-    int top = KUSOKURAE_DECK_SIZE - (np == 4 ? 1 : 0);
+    // A four-player deck drops the second Angel, so display order 31 is absent
+    // and the rest of the range is dealt exactly once.
+    int missing = (np == 4 ? KUSOKURAE_DECK_SIZE - 2 : 0);
     kusokurae_game_state_t g;
     kusokurae_game_config_t cfg = {.np = np, .first_player_idx = 0};
 
@@ -58,7 +58,7 @@ static void check_deal(const char *name, int (*prng)(void *), int np) {
     kusokurae_game_start(&g);
 
     int seen[KUSOKURAE_DECK_SIZE + 1] = {0};
-    int invalid = 0, duplicated = 0, missing = 0;
+    int invalid = 0, duplicated = 0, missing_count = 0;
     for (int p = 0; p < np; p++) {
         if (g.players[p].ncards != cards_each) {
             printf("FAIL  %-19s %dP ncards=%d，应为 %d\n", name, p + 1, g.players[p].ncards, cards_each);
@@ -73,15 +73,18 @@ static void check_deal(const char *name, int (*prng)(void *), int np) {
             }
         }
     }
-    int extra = 0;
+    int unexpected = 0;
     for (int o = 1; o <= KUSOKURAE_DECK_SIZE; o++) {
-        if (o <= top && !seen[o]) missing++;
-        if (o > top && seen[o]) extra++;
+        if (o == missing) {
+            if (seen[o]) unexpected++;   // 本该被抽走的那张却发了出来
+        } else if (!seen[o]) {
+            missing_count++;
+        }
     }
-    duplicated += extra;
-    if (invalid || duplicated || missing) {
+    duplicated += unexpected;
+    if (invalid || duplicated || missing_count) {
         printf("FAIL  %-19s 无效 %d 张，重复 %d 张，漏发 %d 张\n",
-               name, invalid, duplicated, missing);
+               name, invalid, duplicated, missing_count);
         failures++;
     } else {
         printf("ok    %-19s %d 人局，牌堆完整分割\n", name, np);

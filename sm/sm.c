@@ -6,6 +6,12 @@
 #include <time.h>
 
 static kusokurae_card_t DECK[KUSOKURAE_DECK_SIZE];
+
+// The same deck with one Angel taken out, for a four-player game. It is a
+// separate array rather than an offset into DECK because the Ghost now sits
+// at DECK[0]: there is no longer a card at either end that a four-player
+// game wants to drop.
+static kusokurae_card_t DECK4[KUSOKURAE_DECK_SIZE - 1];
 static int (*rng)(void *);
 
 static void sample(void *ptr, size_t count, size_t size,
@@ -195,20 +201,17 @@ kusokurae_player_t *player_find_next(kusokurae_game_state_t *game, kusokurae_pla
 
 void kusokurae_global_init() {
     int i;
-    // Special treatment for jokers
-    DECK[0].suit = KUSOKURAE_SUIT_BAOZI;
-    DECK[0].rank = 10;
+    // The three jokers lead the deck in playing order: Ghost, then the two
+    // Angels. Deck order and rank order agree, so a hand laid out as dealt is
+    // already sorted strongest first.
+    DECK[0].suit = KUSOKURAE_SUIT_OTHER;
+    DECK[0].rank = 11;
     DECK[0].display_order = KUSOKURAE_DECK_SIZE;
     for (i = 1; i < 3; i++) {
-        DECK[i] = DECK[0];
-        DECK[i].display_order -= i;
+        DECK[i].suit = KUSOKURAE_SUIT_BAOZI;
+        DECK[i].rank = 10;
+        DECK[i].display_order = KUSOKURAE_DECK_SIZE - i;
     }
-    // Place the Ghost on 3rd place, so as to be able to simply skip the first
-    // card (one of the 2 Angels) when dealing a 4-player game. It therefore
-    // sits below the Angels in deck order while outranking them in play --
-    // the two orderings are independent, since only rank decides a trick.
-    DECK[2].suit = KUSOKURAE_SUIT_OTHER;
-    DECK[2].rank = 11;
 
     kusokurae_card_suit_t cursuit = KUSOKURAE_SUIT_BAOZI;
     int currank = 9;
@@ -227,6 +230,11 @@ void kusokurae_global_init() {
     for (i = 0; i < KUSOKURAE_DECK_SIZE; i++) {
         DECK[i].flags = 0;
     }
+
+    // DECK4 is DECK without the second Angel, keeping the rest in order.
+    memmove(&DECK4[0], &DECK[0], 2 * sizeof(kusokurae_card_t));
+    memmove(&DECK4[2], &DECK[3],
+            (KUSOKURAE_DECK_SIZE - 3) * sizeof(kusokurae_card_t));
 
     // Use the default PRNG
     rng = &ms_rand;
@@ -299,8 +307,8 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     kusokurae_card_t *deck_base = DECK;
     size_t count = KUSOKURAE_DECK_SIZE;
     if (self->cfg.np == 4) {
-        deck_base++;
-        count--;
+        deck_base = DECK4;
+        count = KUSOKURAE_DECK_SIZE - 1;
     }
     size_t counteach = count / self->cfg.np;
     // At most two remainder areas are used.
@@ -331,13 +339,13 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         // this struct, so the previous game's tally must not carry over.
         self->players[i].score = 0;
         self->players[i].cards_taken = 0;
-        // The house deck holds one Ghost, so at most one seat matches and
-        // only slot 0 is ever written. A two-deck variant would have two, and
-        // one seat could hold both, so this has to start accumulating rather
-        // than assigning before that ships.
-        if (self->players[i].cards[0].suit == KUSOKURAE_SUIT_OTHER ||
-            self->players[i].cards[1].suit == KUSOKURAE_SUIT_OTHER ||
-            self->players[i].cards[2].suit == KUSOKURAE_SUIT_OTHER) {
+        // The Ghost leads the deck and a hand keeps deck order, so if this
+        // player holds it, it is the first card. Nothing can precede it.
+        //
+        // Two decks would put two Ghosts in the first two slots of whichever
+        // hands they land in, so the test widens to cards[0] and cards[1] and
+        // the assignment has to start accumulating into both slots.
+        if (self->players[i].cards[0].suit == KUSOKURAE_SUIT_OTHER) {
             self->ghost_holder_index[0] = i;
         }
     }
