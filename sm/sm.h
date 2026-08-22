@@ -190,6 +190,13 @@ void kusokurae_global_init();
 // a uniformly distributed value in the closed range [0, KUSOKURAE_RAND_MAX].
 // Passing NULL leaves the current generator in place.
 //
+// Return values outside that range are not rejected: dealing stays memory
+// safe and every player still receives the right number of cards, but the
+// deal is no longer uniform. Note that a generator meaning to cover
+// [0, 65535] cannot say so through this signature -- int16_t turns half of
+// those values into negative numbers, which bias every draw towards being
+// selected.
+//
 // The C library's rand() is deliberately not used: it keeps one global state
 // and is not thread safe. The convention here is one game state per room,
 // each driven by a single thread, so the generator is handed per-game state

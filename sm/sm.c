@@ -19,7 +19,14 @@ static void sample(void *ptr, size_t count, size_t size,
         dice = rng(rng_state);
         threshold = (KUSOKURAE_RAND_MAX + 1ULL) * rwanted / rcount;
         //printf("%ld wanted, %ld remaining, %lld/%lld\n", rwanted, rcount, dice, threshold);
-        if (dice < threshold) {
+        // The rwanted test is what keeps a misbehaving generator from
+        // overrunning pchosen. rwanted == 0 makes threshold 0, which stops
+        // the selection only as long as dice is non-negative; a generator
+        // returning values above KUSOKURAE_RAND_MAX cannot express them in
+        // int16_t and hands back negative numbers instead, and those compare
+        // below any threshold. Keeping the bound here rather than trusting
+        // the contract makes "at most wanted items are written" structural.
+        if (rwanted > 0 && dice < threshold) {
             memmove(pdst, psrc, size);
             pdst += size;
             rwanted--;
