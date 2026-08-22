@@ -7,16 +7,18 @@
 
 # Test binary, build with `go test -c`
 *.test
+experimental/online/online
 experimental/selfplay/selfplay
 experimental/sm/sm
-.vscode
-.claude
-.superpowers
+sm/_test_main
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Output of vscode-go debugging
+# VS Code debugging
+.vscode
 debug
-CLAUDE.md
-docs
+
+# AI artifacts
+.claude
+.superpowers
