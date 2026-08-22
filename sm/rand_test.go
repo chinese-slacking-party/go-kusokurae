@@ -173,7 +173,7 @@ func BenchmarkPRNGGoOnly(b *testing.B) {
 // no language boundary is crossed. The delta against GoOnly is the cost of the
 // callback signature itself (C type conversion plus the pointer write).
 func BenchmarkPRNGGoRandom(b *testing.B) {
-	var sink int16
+	var sink int
 	for i := 0; i < b.N; i++ {
 		sink = goRandomValue()
 	}
@@ -185,7 +185,7 @@ func BenchmarkPRNGGoRandom(b *testing.B) {
 // essentially the price of a single Go -> C call.
 func BenchmarkPRNGNativeInC(b *testing.B) {
 	state := int32(1)
-	var sink int16
+	var sink int
 	for i := 0; i < b.N; i++ {
 		sink = nativeRandom(&state)
 	}
@@ -196,7 +196,7 @@ func BenchmarkPRNGNativeInC(b *testing.B) {
 // pays for every dice roll: a call into C plus a callback back into Go, the
 // latter being the expensive direction.
 func BenchmarkPRNGCgoRoundTrip(b *testing.B) {
-	var sink int16
+	var sink int
 	for i := 0; i < b.N; i++ {
 		sink = randomViaC()
 	}

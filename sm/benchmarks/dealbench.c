@@ -60,7 +60,7 @@ static int deal_selection(void *state) {
         kusokurae_card_t *psrc = pass[k].src, *pdst = pass[k].dst, *prej = pass[k].rej;
         size_t rc = pass[k].count, rw = pass[k].wanted;
         while (rc > 0) {
-            int16_t dice = ms_rand(state);
+            int dice = ms_rand(state);
             draws++;
             if (dice < (int64_t)(KUSOKURAE_RAND_MAX + 1ULL) * rw / rc) {
                 *pdst++ = *psrc;

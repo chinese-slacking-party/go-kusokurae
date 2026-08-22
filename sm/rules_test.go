@@ -77,9 +77,9 @@ func TestGhostDoublesRoundScore(t *testing.T) {
 // replicate. It guards the unsigned rewrite of ms_rand() against any change in
 // the values it yields.
 func TestNativePRNGGoldenSequence(t *testing.T) {
-	want := []int16{41, 18467, 6334, 26500, 19169, 15724, 11478, 29358, 26962, 24464, 5705, 28145}
+	want := []int{41, 18467, 6334, 26500, 19169, 15724, 11478, 29358, 26962, 24464, 5705, 28145}
 	state := int32(1)
-	got := make([]int16, len(want))
+	got := make([]int, len(want))
 	for i := range got {
 		got[i] = nativeRandom(&state)
 	}

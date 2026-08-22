@@ -190,12 +190,18 @@ void kusokurae_global_init();
 // a uniformly distributed value in the closed range [0, KUSOKURAE_RAND_MAX].
 // Passing NULL leaves the current generator in place.
 //
-// Return values outside that range are not rejected: dealing stays memory
-// safe and every player still receives the right number of cards, but the
-// deal is no longer uniform. Note that a generator meaning to cover
-// [0, 65535] cannot say so through this signature -- int16_t turns half of
-// those values into negative numbers, which bias every draw towards being
-// selected.
+// The return type is int rather than a type exactly as wide as the range,
+// mirroring the C library, where rand() returns int and RAND_MAX carries the
+// range on its own. That states the range in one place instead of two that
+// can disagree, leaves room to raise KUSOKURAE_RAND_MAX without touching
+// this signature, and lets a generator covering [0, 65535] say so instead of
+// silently handing back negative numbers.
+//
+// Return values outside the range are not rejected. Dealing stays memory safe
+// and every player still receives the right number of cards -- sample() in
+// sm.c bounds the selection so that holds for any generator -- but the deal
+// is no longer uniform: values below the range are always taken and values
+// above it are always passed over.
 //
 // The C library's rand() is deliberately not used: it keeps one global state
 // and is not thread safe. The convention here is one game state per room,
@@ -204,7 +210,7 @@ void kusokurae_global_init();
 // honour that and keep whatever it needs in the pointer it is given rather
 // than in globals -- or, like the Go binding does, to be safe to call from
 // several games at once.
-void kusokurae_set_prng(int16_t (*fn)(void *));
+void kusokurae_set_prng(int (*fn)(void *));
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
                                       kusokurae_game_config_t *cfg,

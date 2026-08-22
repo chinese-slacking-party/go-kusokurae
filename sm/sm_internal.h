@@ -12,9 +12,9 @@ extern "C" {
 
 // ms_rand is the default generator: a replica of the LCG behind the
 // Microsoft implementation of C rand(), whose RAND_MAX of 32767 is where
-// KUSOKURAE_RAND_MAX comes from. Returns [0, KUSOKURAE_RAND_MAX], signed
-// like the rand() it replicates.
-int16_t ms_rand(void *state);
+// KUSOKURAE_RAND_MAX comes from. Returns [0, KUSOKURAE_RAND_MAX] as an int,
+// signed and machine-word wide like the rand() it replicates.
+int ms_rand(void *state);
 
 void game_state_change(kusokurae_game_state_t *g, int32_t newstate);
 

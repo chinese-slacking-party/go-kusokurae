@@ -6,7 +6,7 @@
 #include "sm_internal.h"
 
 static kusokurae_card_t DECK[KUSOKURAE_DECK_SIZE];
-static int16_t (*rng)(void *);
+static int (*rng)(void *);
 
 static void sample(void *ptr, size_t count, size_t size,
                    size_t wanted, void *pchosen, void *pdiscarded,
@@ -14,19 +14,27 @@ static void sample(void *ptr, size_t count, size_t size,
     char *psrc = (char *)ptr, *pdst = (char *)pchosen, *prej = (char *)pdiscarded;
     size_t rcount = count, rwanted = wanted; // r for remaining
     int64_t threshold;
-    int16_t dice;
+    int dice;
     while (rcount > 0) {
         dice = rng(rng_state);
         threshold = (KUSOKURAE_RAND_MAX + 1ULL) * rwanted / rcount;
         //printf("%ld wanted, %ld remaining, %lld/%lld\n", rwanted, rcount, dice, threshold);
-        // The rwanted test is what keeps a misbehaving generator from
-        // overrunning pchosen. rwanted == 0 makes threshold 0, which stops
-        // the selection only as long as dice is non-negative; a generator
-        // returning values above KUSOKURAE_RAND_MAX cannot express them in
-        // int16_t and hands back negative numbers instead, and those compare
-        // below any threshold. Keeping the bound here rather than trusting
-        // the contract makes "at most wanted items are written" structural.
-        if (rwanted > 0 && dice < threshold) {
+        // The two bounds around the dice test are what make "exactly
+        // wanted items are chosen" hold for any generator, rather than
+        // only for one that honours the contract. Both are no-ops when it
+        // does: a draw in [0, KUSOKURAE_RAND_MAX] already fails against
+        // the zero threshold that rwanted == 0 produces, and already
+        // passes the KUSOKURAE_RAND_MAX + 1 threshold that rwanted ==
+        // rcount produces.
+        //
+        // They matter for the two ways a generator can leave the range. A
+        // negative draw compares below every threshold, so it would keep
+        // being selected after the hand is full, running past pchosen and
+        // taking rwanted, a size_t, below zero. A draw above
+        // KUSOKURAE_RAND_MAX compares above thresholds it should have
+        // passed, so it would leave the hand short with untouched slots
+        // still in it.
+        if (rwanted >= rcount || (rwanted > 0 && dice < threshold)) {
             memmove(pdst, psrc, size);
             pdst += size;
             rwanted--;
@@ -89,7 +97,7 @@ static int round_score(kusokurae_game_state_t *g, int *p_bonus_flag) {
     return ret;
 }
 
-int16_t ms_rand(void *state) {
+int ms_rand(void *state) {
     // Ref https://bitbucket.org/shlomif/fc-solve/src/dd80a812e8b3aba98a014d939ed77eb1ce764e04/fc-solve/source/board_gen/pi_make_microsoft_freecell_board.c
     // Unsigned arithmetic: the multiplication overflows by design, and
     // signed overflow would be undefined behaviour. Wrapping modulo 2^32
@@ -98,7 +106,7 @@ int16_t ms_rand(void *state) {
     uint32_t *ustate = (uint32_t *)state;
     *ustate = 214013u * (*ustate) + 2531011u;
     *ustate &= 0x7FFFFFFFu;
-    return (int16_t)(*ustate >> 16);
+    return (int)(*ustate >> 16);
 }
 
 void game_state_change(kusokurae_game_state_t *g, int32_t newstate) {
@@ -221,7 +229,7 @@ void kusokurae_global_init() {
     rng = &ms_rand;
 }
 
-void kusokurae_set_prng(int16_t (*fn)(void *)) {
+void kusokurae_set_prng(int (*fn)(void *)) {
     if (fn != NULL) {
         rng = fn;
     }
