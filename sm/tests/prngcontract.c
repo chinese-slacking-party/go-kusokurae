@@ -17,7 +17,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <limits.h>
-#include "sm.h"
+
 #include "sm_internal.h"
 
 static uint32_t seed = 42;

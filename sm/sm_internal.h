@@ -1,11 +1,11 @@
 #ifndef BS_KUSOKURAE_SM_INTERNAL_H
 #define BS_KUSOKURAE_SM_INTERNAL_H
 
+#include "sm.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "sm.h"
 
 #define MASK_PLAYED_IN_ROUND    0x7F
 #define MASK_PLAYABLE           0x80

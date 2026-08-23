@@ -12,7 +12,7 @@
 
 #include <stdio.h>
 #include <string.h>
-#include "sm.h"
+
 #include "sm_internal.h"
 
 #define GAMES 200

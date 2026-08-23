@@ -1,9 +1,9 @@
-#include <string.h>
+#include "sm_internal.h"
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
-#include "sm.h"
-#include "sm_internal.h"
 
 static kusokurae_card_t DECK[KUSOKURAE_DECK_SIZE];
 static int (*rng)(void *);

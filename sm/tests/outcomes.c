@@ -10,10 +10,10 @@
 //
 //	gcc -O2 -std=gnu11 -I .. -o /tmp/outcomes outcomes.c ../sm.c && /tmp/outcomes
 
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdint.h>
-#include "sm.h"
+
 #include "sm_internal.h"
 
 // xorshift64, independent of the engine's own PRNG so that the choice of move

@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
-#include "sm.h"
+
 #include "sm_internal.h"
 
 void print_card(kusokurae_card_t *p) {
@@ -152,4 +152,3 @@ int main(int argc, char *argv[]) {
     std::printf("\n");
     return test_restart_resets_score() ? 1 : 0;
 }
-

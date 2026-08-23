@@ -12,12 +12,12 @@
 //
 //	gcc -O2 -std=gnu11 -I .. -o /tmp/dealbench dealbench.c ../sm.c && /tmp/dealbench
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <stdint.h>
-#include "sm.h"
+
 #include "sm_internal.h"
 
 #define REPS 2000000

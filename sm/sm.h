@@ -1,13 +1,13 @@
 #ifndef BS_KUSOKURAE_SM_H
 #define BS_KUSOKURAE_SM_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define KUSOKURAE_DECK_SIZE         33
 #define KUSOKURAE_MAX_HAND_CARDS    22
