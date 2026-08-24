@@ -250,6 +250,10 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
         return KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS;
     }
     memmove(&self->cfg, cfg, sizeof(kusokurae_game_config_t));
+    // The reserve is not the caller's to fill. Zeroing it here means a caller
+    // that left its config partly uninitialised cannot put anything there, and
+    // whatever field is carved out of it later starts from a known value.
+    memset(self->cfg.reserved, 0, sizeof(self->cfg.reserved));
     if (cbs != NULL) {
         memmove(&self->cbs, cbs, sizeof(kusokurae_game_callbacks_t));
     } else {
@@ -265,15 +269,15 @@ kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
     // happens to sit at the front, which is the low half only on little-endian
     // machines. On a big-endian machine the old code handed ms_rand() the high
     // 32 bits of time(0), i.e. zero, and every game was dealt identically.
-    self->rng_state = 0;
+    memset(self->rng_state, 0, sizeof(self->rng_state));
     struct timespec ts;
     timespec_get(&ts, TIME_UTC);
     // Nanosecond resolution, so that two games started in the same second no
     // longer share a deal.
     uint32_t seed = (uint32_t)ts.tv_sec ^ (uint32_t)ts.tv_nsec;
-    memmove(&self->rng_state, &seed, sizeof(seed));
+    memmove(self->rng_state, &seed, sizeof(seed));
     // Discard the first number that is not quite random.
-    ms_rand(&self->rng_state);
+    ms_rand(self->rng_state);
 
     for (int i = 0; i < self->cfg.np; i++) {
         self->players[i].index = i + 1;
@@ -302,15 +306,21 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     // At most two remainder areas are used.
     // TODO: more flexible card assignment (e.g. 5~6 players, 2 decks)
     kusokurae_card_t remaining[KUSOKURAE_DECK_SIZE], remaining2[KUSOKURAE_DECK_SIZE];
-    sample(deck_base, count, sizeof(kusokurae_card_t), counteach, self->players[0].cards, remaining, &self->rng_state);
+    sample(deck_base, count, sizeof(kusokurae_card_t), counteach, self->players[0].cards, remaining, self->rng_state);
     if (self->cfg.np == 4) {
-        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].cards, remaining2, &self->rng_state);
-        sample(remaining2, count - counteach * 2, sizeof(kusokurae_card_t), counteach, self->players[2].cards, self->players[3].cards, &self->rng_state);
+        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].cards, remaining2, self->rng_state);
+        sample(remaining2, count - counteach * 2, sizeof(kusokurae_card_t), counteach, self->players[2].cards, self->players[3].cards, self->rng_state);
     } else {
-        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].cards, self->players[2].cards, &self->rng_state);
+        sample(remaining, count - counteach, sizeof(kusokurae_card_t), counteach, self->players[1].cards, self->players[2].cards, self->rng_state);
     }
 
     int i;
+    // No seat holds a Ghost until the loop below finds one. Both slots are
+    // cleared because the second stays -1 with the house deck, and because
+    // starting a new game on a finished state must not inherit the old one.
+    self->ghost_holder_index[0] = -1;
+    self->ghost_holder_index[1] = -1;
+
     // Set up player data and find the ghost holder.
     for (i = 0; i < self->cfg.np; i++) {
         self->players[i].index = i + 1;
@@ -321,10 +331,14 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         // this struct, so the previous game's tally must not carry over.
         self->players[i].score = 0;
         self->players[i].cards_taken = 0;
+        // The house deck holds one Ghost, so at most one seat matches and
+        // only slot 0 is ever written. A two-deck variant would have two, and
+        // one seat could hold both, so this has to start accumulating rather
+        // than assigning before that ships.
         if (self->players[i].cards[0].suit == KUSOKURAE_SUIT_OTHER ||
             self->players[i].cards[1].suit == KUSOKURAE_SUIT_OTHER ||
             self->players[i].cards[2].suit == KUSOKURAE_SUIT_OTHER) {
-            self->ghost_holder_index = i;
+            self->ghost_holder_index[0] = i;
         }
     }
     for (; i < KUSOKURAE_MAX_PLAYERS; i++) {

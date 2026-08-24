@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -10,7 +11,12 @@ extern "C" {
 #endif
 
 #define KUSOKURAE_DECK_SIZE         33
-#define KUSOKURAE_MAX_HAND_CARDS    22
+// Largest hand any supported configuration deals. Four players is the
+// maximum, so the binding case is three players sharing a standard 54-card
+// poker deck (jokers included) at 18 cards each -- a deck variant this
+// engine reserves room for but does not implement yet. The house deck deals
+// 11 at most.
+#define KUSOKURAE_MAX_HAND_CARDS    18
 #define KUSOKURAE_MAX_PLAYERS       4
 
 // Inclusive upper bound of the values a random number generator must
@@ -36,6 +42,10 @@ typedef void (*state_transition_cb)(struct kusokurae_game_state_t *self, int32_t
 typedef struct {
     int32_t np;               // Number of players (3 or 4)
     int32_t first_player_idx; // 0-based first-round leader; mod np at start
+
+    // Room to grow without moving anything behind it; must be zero, and
+    // kusokurae_game_init() zeroes it for you.
+    int32_t reserved[12];
 } kusokurae_game_config_t;
 
 typedef struct {
@@ -114,7 +124,8 @@ typedef struct {
     int32_t active;
 
     // Everything dealt to this player, played and unplayed alike, in deck
-    // order. 22 slots (reserved for playing with 2 decks).
+    // order. KUSOKURAE_MAX_HAND_CARDS slots, sized for the largest hand any
+    // supported configuration deals rather than for the house deck's 11.
     //
     // A played card is not removed: it stays in place and its flags record
     // the round it went out in, which is what makes the whole game
@@ -153,9 +164,28 @@ typedef enum {
     KUSOKURAE_ERROR_UNSPECIFIED,
 } kusokurae_error_t;
 
+// Everything up to (not including) cbs is laid out so that a byte-for-byte
+// copy means the same thing on a 32- and a 64-bit build: every field is four
+// bytes or a multiple of four, sits at a four-byte-aligned offset, and the one
+// member wanting eight-byte alignment -- rng_state -- lands on a multiple of
+// eight by construction. That matters because uint64_t is not aligned to eight
+// everywhere: on i386 it is aligned to four, so a compiler there would pad
+// differently and shift every field behind it. The padding below is hand
+// placed to make both compilers agree instead of leaving it to them. The
+// static assertions after the struct are what actually hold the line.
+//
+// cbs is deliberately outside that guarantee: it holds pointers, so it is
+// eight bytes on one build and sixteen on the other, and it could not be
+// restored from a dump anyway. Dump KUSOKURAE_SAVE_BYTES, not sizeof.
 typedef struct kusokurae_game_state_t {
     kusokurae_game_config_t cfg;
     int32_t status;
+
+    // Pads the header out to 64 bytes so players starts on a cache line, and
+    // -- the load-bearing part -- keeps everything behind it at an offset
+    // that is a multiple of eight. Without it rng_state would land on a
+    // four-but-not-eight offset and the two builds would disagree.
+    char pad1[4];
 
     // Max 4 players
     kusokurae_player_t players[KUSOKURAE_MAX_PLAYERS];
@@ -163,8 +193,17 @@ typedef struct kusokurae_game_state_t {
     // Finished round count
     int32_t nround;
 
-    // Who has the ghost in hand?
-    int32_t ghost_holder_index;
+    // Which seats hold a Ghost, or -1. Two entries because a deck variant
+    // built from two decks has two Ghosts and one player can be dealt both.
+    // The house deck has one, so only index 0 is written today and index 1
+    // stays -1; a second Ghost also needs a rule for whether it is declared
+    // once or twice, which RULES.zh-CN.md does not answer yet.
+    //
+    // The pair is also load bearing for the layout: nround, this, and
+    // high_ranker_index come to sixteen bytes together, which is what keeps
+    // current_round and rng_state on multiples of eight. Shrinking it back to
+    // a single int32_t means adding four bytes of padding somewhere.
+    int32_t ghost_holder_index[2];
 
     // Rank leader in the current round.
     // Set to -1 before anyone plays and updated on each play.
@@ -174,17 +213,49 @@ typedef struct kusokurae_game_state_t {
     // players[n]'s move is placed in current_round[n].
     kusokurae_card_t current_round[KUSOKURAE_MAX_PLAYERS];
 
-    // 8 bytes of state for the random number generator, private to this
+    // 32 bytes of state for the random number generator, private to this
     // game. Keeping the state here rather than in a global is what lets one
     // game state per room, each driven by a single thread, run without any
-    // locking. kusokurae_game_init() seeds the low 32 bits of it; a
-    // replacement generator may use all 8 bytes however it likes.
-    uint64_t rng_state;
+    // locking. kusokurae_game_init() seeds all four words; a replacement
+    // generator may use them however it likes.
+    uint64_t rng_state[4];
 
     // Game-specific callbacks should be put at the bottom, because their sizes
     // are machine-dependent.
     kusokurae_game_callbacks_t cbs;
 } kusokurae_game_state_t;
+
+// How much of a game state is worth writing down. Everything before cbs is
+// plain data with a build-independent layout; cbs is host pointers.
+#define KUSOKURAE_SAVE_BYTES (offsetof(kusokurae_game_state_t, cbs))
+
+// The layout contract, in the order it has to hold.
+//
+// Padding: if the compiler inserted a single byte anywhere before cbs, the
+// offset of cbs would exceed the sum of what precedes it. Written against
+// sizeof rather than literals so it still means something after
+// KUSOKURAE_MAX_HAND_CARDS or KUSOKURAE_MAX_PLAYERS changes.
+static_assert(offsetof(kusokurae_game_state_t, cbs) ==
+                  sizeof(kusokurae_game_config_t)
+                  + sizeof(int32_t)                                    // status
+                  + 4                                                  // pad1
+                  + sizeof(kusokurae_player_t) * KUSOKURAE_MAX_PLAYERS
+                  + sizeof(int32_t)                                    // nround
+                  + sizeof(int32_t) * 2                        // ghost_holder_index
+                  + sizeof(int32_t)                            // high_ranker_index
+                  + sizeof(kusokurae_card_t) * KUSOKURAE_MAX_PLAYERS
+                  + sizeof(uint64_t) * 4,                              // rng_state
+              "the compiler padded kusokurae_game_state_t somewhere before cbs");
+
+// Alignment: these three are what make the 32- and 64-bit layouts agree.
+static_assert(sizeof(kusokurae_game_config_t) % 8 == 0,
+              "config must be a multiple of 8 or it shifts everything after it");
+static_assert(sizeof(kusokurae_player_t) % 8 == 0,
+              "player must be a multiple of 8 or players[] breaks the run");
+static_assert(offsetof(kusokurae_game_state_t, rng_state) % 8 == 0,
+              "rng_state must fall on a multiple of 8, or a build that aligns "
+              "uint64_t to 8 will pad in front of it and one that aligns it to "
+              "4 will not");
 
 typedef struct {
     // On screen: "Round <seq>"
@@ -207,31 +278,16 @@ typedef struct {
 
 void kusokurae_global_init();
 
-// kusokurae_set_prng installs the generator used to deal cards. fn receives
-// a pointer to the rng_state field of the game being dealt, and must return
-// a uniformly distributed value in the closed range [0, KUSOKURAE_RAND_MAX].
-// Passing NULL leaves the current generator in place.
-//
-// The return type is int rather than a type exactly as wide as the range,
-// mirroring the C library, where rand() returns int and RAND_MAX carries the
-// range on its own. That states the range in one place instead of two that
-// can disagree, leaves room to raise KUSOKURAE_RAND_MAX without touching
-// this signature, and lets a generator covering [0, 65535] say so instead of
-// silently handing back negative numbers.
-//
-// Return values outside the range are not rejected. Dealing stays memory safe
-// and every player still receives the right number of cards -- sample() in
-// sm.c bounds the selection so that holds for any generator -- but the deal
-// is no longer uniform: values below the range are always taken and values
-// above it are always passed over.
-//
-// The C library's rand() is deliberately not used: it keeps one global state
-// and is not thread safe. The convention here is one game state per room,
-// each driven by a single thread, so the generator is handed per-game state
-// instead and games never contend. A replacement generator is expected to
-// honour that and keep whatever it needs in the pointer it is given rather
-// than in globals -- or, like the Go binding does, to be safe to call from
-// several games at once.
+// kusokurae_set_prng installs the generator used to deal cards, or leaves the
+// current one in place if fn is NULL. fn receives a pointer to the 32-byte
+// rng_state of the game being dealt -- per game, so that rooms driven by one
+// thread each never contend, which is also why the thread-unsafe libc rand()
+// is not used -- and must return a uniformly distributed value in the closed
+// range [0, KUSOKURAE_RAND_MAX]. Returning int rather than an exactly-sized
+// type mirrors the C library, where RAND_MAX carries the range on its own.
+// Out-of-range values are not rejected: dealing stays memory safe and every
+// player still receives the right number of cards, because sample() in sm.c
+// bounds the selection, but the deal stops being uniform.
 void kusokurae_set_prng(int (*fn)(void *));
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,

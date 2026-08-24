@@ -28,7 +28,7 @@ func playOneRound(t *testing.T, hand ...Card) *GameState {
 	assert.NoError(t, g.Start())
 
 	for i, c := range hand {
-		g.players[i].allCards = [22]Card{0: c}
+		g.players[i].allCards = [maxHandCards]Card{0: c}
 		g.players[i].numCards = 1
 		g.players[i].score = 0
 		g.players[i].cardsTaken = 0

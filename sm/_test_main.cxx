@@ -103,7 +103,10 @@ static void play_out(kusokurae_game_state_t *g) {
 // zeroed in the first place. Returns the number of failures.
 static int test_restart_resets_score() {
     int failures = 0;
-    kusokurae_game_config_t cfg = { 3 };
+    // Empty braces rather than { 3 }: the config carries a reserved
+    // array now, and a partial brace list makes -Wextra complain in C++.
+    kusokurae_game_config_t cfg = {};
+    cfg.np = 3;
     kusokurae_game_callbacks_t cbs = { NULL, NULL };
 
     // Case 1: a caller-supplied struct full of garbage.
@@ -141,13 +144,16 @@ static int test_restart_resets_score() {
 int main(int argc, char *argv[]) {
     test_init();
 
-    kusokurae_game_config_t cfg = { 3 };
+    // Empty braces rather than { 3 }: the config carries a reserved
+    // array now, and a partial brace list makes -Wextra complain in C++.
+    kusokurae_game_config_t cfg = {};
+    cfg.np = 3;
     kusokurae_game_state_t g;
     kusokurae_game_callbacks_t cbs = { &g, &dummy_state_cb };
     kusokurae_game_init(&g, &cfg, &cbs);
 
     test_start(&g);
-    std::printf("\n%dP has the ghost\n", g.ghost_holder_index + 1);
+    std::printf("\n%dP has the ghost\n", g.ghost_holder_index[0] + 1);
 
     std::printf("\n");
     return test_restart_resets_score() ? 1 : 0;

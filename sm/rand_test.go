@@ -114,7 +114,7 @@ func TestDealUsesPRNG(t *testing.T) {
 		if len(seen) != 33 {
 			t.Fatalf("deal %d: dealt %d distinct cards, want 33", d, len(seen))
 		}
-		ghostCount[g.ghostHolder]++
+		ghostCount[g.ghostHolder[0]]++
 	}
 
 	// Expected 1000 per seat with a standard deviation of ~26, so the +/-20%

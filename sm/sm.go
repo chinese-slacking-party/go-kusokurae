@@ -134,6 +134,9 @@ var errMap = map[C.kusokurae_error_t]error{
 type GameConfig struct {
 	NumPlayers     int32 `json:"num_players"`
 	FirstPlayerIdx int32 `json:"-"`
+
+	// Mirrors kusokurae_game_config_t.reserved.
+	_ [12]int32
 }
 
 // GameCallbacks has the same memory layout with C.kusokurae_game_callbacks_t.
@@ -161,16 +164,26 @@ type Player struct {
 	busted     int32
 }
 
-// GameState has the same memory layout with C.kusokurae_game_state_t.
+// maxHandCards mirrors KUSOKURAE_MAX_HAND_CARDS for the _test.go files,
+// which cannot reach cgo.
+const maxHandCards = C.KUSOKURAE_MAX_HAND_CARDS
+
+// GameState has the same memory layout with C.kusokurae_game_state_t up to and
+// including cbs. A mismatch corrupts memory rather than failing cleanly, so
+// TestStructLayout checks every offset against the C side.
 type GameState struct {
-	cfg         GameConfig
-	status      GameStatus
+	cfg    GameConfig
+	status GameStatus
+
+	// Mirrors kusokurae_game_state_t.pad1.
+	_ [4]byte
+
 	players     [C.KUSOKURAE_MAX_PLAYERS]Player
 	numRound    int32
-	ghostHolder int32
+	ghostHolder [2]int32
 	highRanker  int32
 	curRound    [C.KUSOKURAE_MAX_PLAYERS]Card
-	rngState    int64
+	rngState    [4]int64
 	cbs         GameCallbacks
 
 	// Extra fields for Go library users go here
