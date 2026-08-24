@@ -23,7 +23,7 @@ static int failures, xfailures, xpasses;
 // Deals each player the single card they are about to play, then plays them in
 // seat order and reports the resulting scores.
 static void play_one_trick(kusokurae_game_state_t *g, int np, const kusokurae_card_t *hand) {
-    kusokurae_game_config_t cfg = {np, 0};
+    kusokurae_game_config_t cfg = {.np = np, .first_player_idx = 0};
     memset(g, 0, sizeof(*g));
     kusokurae_game_init(g, &cfg, NULL);
     kusokurae_game_start(g);

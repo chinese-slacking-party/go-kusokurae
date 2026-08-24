@@ -1,9 +1,8 @@
 package sm
 
-// This file exposes the C side of the PRNG callback to Go tests and
-// benchmarks. It is not a _test.go file because cgo is not supported in test
-// files ("use of cgo in test ... not supported"), so the bridge has to live in
-// a regular package file. Nothing here is used by the library itself.
+// Exposes the C side of the PRNG callback to the tests and benchmarks.
+// Nothing here is used by the library itself; the test_ prefix says so, since
+// cgo is not allowed in a _test.go file.
 
 /*
 #include "sm_internal.h"

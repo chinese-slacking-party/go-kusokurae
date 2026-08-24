@@ -28,7 +28,7 @@ static int broken;
 
 static void survey(int np, long games) {
     kusokurae_game_state_t g;
-    kusokurae_game_config_t cfg = {np, 0};
+    kusokurae_game_config_t cfg = {.np = np, .first_player_idx = 0};
     long ties = 0, max_le_zero = 0, negative_total = 0, naive_wrong = 0, widest_tie = 0;
     int lowest_total = 9999, highest_total = -9999, lowest_seat_score = 9999;
     int cards_each = (np == 4 ? KUSOKURAE_DECK_SIZE - 1 : KUSOKURAE_DECK_SIZE) / np;

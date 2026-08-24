@@ -164,10 +164,6 @@ type Player struct {
 	busted     int32
 }
 
-// maxHandCards mirrors KUSOKURAE_MAX_HAND_CARDS for the _test.go files,
-// which cannot reach cgo.
-const maxHandCards = C.KUSOKURAE_MAX_HAND_CARDS
-
 // GameState has the same memory layout with C.kusokurae_game_state_t up to and
 // including cbs. A mismatch corrupts memory rather than failing cleanly, so
 // TestStructLayout checks every offset against the C side.

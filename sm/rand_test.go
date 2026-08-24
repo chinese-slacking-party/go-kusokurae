@@ -7,6 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Tests for the Go side of the PRNG bridge. The engine's own generator and its
+// seeding are covered by tests/nativeprng.c, and the behaviour of a generator
+// that breaks the contract by tests/prngcontract.c.
+
 // prngMax is the inclusive upper bound the engine expects from the PRNG.
 const prngMax = 0x7FFF
 
@@ -18,24 +22,7 @@ const randSamples = 1 << 20
 const bucketWidth = (prngMax + 1) / 64
 
 func TestPRNGMaxMatchesC(t *testing.T) {
-	// Guards against the Go and C sides drifting apart.
 	assert.Equal(t, prngMax, cPRNGMax)
-}
-
-// TestCPRNGRange documents the contract the Go replacement has to honour: the
-// engine's own PRNG yields the closed range [0, KUSOKURAE_RAND_MAX].
-func TestCPRNGRange(t *testing.T) {
-	state := int32(1)
-	lo, hi := prngMax, 0
-	for i := 0; i < randSamples; i++ {
-		v := int(nativeRandom(&state))
-		if v < 0 || v > prngMax {
-			t.Fatalf("ms_rand() returned %d, want [0, %d]", v, prngMax)
-		}
-		lo, hi = min(lo, v), max(hi, v)
-	}
-	assert.Equal(t, 0, lo)
-	assert.Equal(t, prngMax, hi)
 }
 
 func TestGoRandomRange(t *testing.T) {
@@ -86,73 +73,6 @@ func TestCgoBridgeRange(t *testing.T) {
 	// pins the exact endpoints.
 	assert.Less(t, lo, bucketWidth)
 	assert.Greater(t, hi, prngMax-bucketWidth)
-}
-
-// TestDealUsesPRNG checks the PRNG end to end: every deal must be a partition
-// of the deck, and over many deals the ghost card must reach every seat.
-func TestDealUsesPRNG(t *testing.T) {
-	const deals = 3000
-	const players = 3
-	const handSize = 33 / players
-
-	g, err := NewGame(GameConfig{NumPlayers: players}, nil)
-	assert.NoError(t, err)
-
-	var ghostCount [players]int
-	for d := 0; d < deals; d++ {
-		assert.NoError(t, g.Start())
-		seen := make(map[uint32]bool, 33)
-		for i := 0; i < players; i++ {
-			for j := 0; j < handSize; j++ {
-				order := g.players[i].allCards[j].displayOrder
-				if seen[order] {
-					t.Fatalf("deal %d: duplicate card with display order %d", d, order)
-				}
-				seen[order] = true
-			}
-		}
-		if len(seen) != 33 {
-			t.Fatalf("deal %d: dealt %d distinct cards, want 33", d, len(seen))
-		}
-		ghostCount[g.ghostHolder[0]]++
-	}
-
-	// Expected 1000 per seat with a standard deviation of ~26, so the +/-20%
-	// window below is far outside the noise.
-	for i, c := range ghostCount {
-		if c < deals/players*4/5 || c > deals/players*6/5 {
-			t.Errorf("seat %d held the ghost %d times out of %d, want roughly %d",
-				i, c, deals, deals/players)
-		}
-	}
-}
-
-// TestNativePRNGSeedVaries covers the seeding of the engine's own PRNG, which
-// the Go bridge normally hides. Two games created back to back must not be
-// dealt identically: before the seed was taken from a nanosecond clock, games
-// created within the same second shared a seed, and on big-endian machines the
-// seed was always zero.
-func TestNativePRNGSeedVaries(t *testing.T) {
-	useNativePRNG()
-	defer useCgoPRNG()
-
-	const games = 8
-	deals := make(map[[33]uint32]bool, games)
-	for i := 0; i < games; i++ {
-		g, err := NewGame(GameConfig{NumPlayers: 3}, nil)
-		assert.NoError(t, err)
-		assert.NoError(t, g.Start())
-
-		// The engine deals in deck order, so the hands alone identify the deal.
-		var deal [33]uint32
-		for s := 0; s < 3; s++ {
-			for j := 0; j < 11; j++ {
-				deal[s*11+j] = g.players[s].allCards[j].displayOrder
-			}
-		}
-		deals[deal] = true
-	}
-	assert.Equal(t, games, len(deals), "games created in the same second were dealt identically")
 }
 
 // The benchmarks below peel the PRNG callback apart layer by layer to show what

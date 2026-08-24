@@ -19,7 +19,7 @@
 
 static void run(int np) {
     kusokurae_game_state_t g;
-    kusokurae_game_config_t cfg = {np, 0};
+    kusokurae_game_config_t cfg = {.np = np, .first_player_idx = 0};
     for (int t = 0; t < GAMES; t++) {
         memset(&g, 0, sizeof(g));
         kusokurae_game_init(&g, &cfg, NULL);

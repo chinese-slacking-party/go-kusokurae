@@ -50,7 +50,7 @@ static void check_deal(const char *name, int (*prng)(void *), int np) {
     // order, so the dealt cards run 1..32 rather than 1..33.
     int top = KUSOKURAE_DECK_SIZE - (np == 4 ? 1 : 0);
     kusokurae_game_state_t g;
-    kusokurae_game_config_t cfg = {np, 0};
+    kusokurae_game_config_t cfg = {.np = np, .first_player_idx = 0};
 
     kusokurae_set_prng(prng);
     memset(&g, 0, sizeof(g));
