@@ -10,7 +10,7 @@
 // a cgo callback a draw costs ~91ns and the draw count dominates. See the
 // PRNG benchmarks in sm/rand_test.go for that side of the comparison.
 //
-//	gcc -O2 -std=gnu11 -I .. -o /tmp/dealbench dealbench.c ../sm.c && /tmp/dealbench
+//	gcc -O2 -std=c17 -I .. -o /tmp/dealbench dealbench.c ../sm.c && /tmp/dealbench
 
 #include <stdint.h>
 #include <stdio.h>

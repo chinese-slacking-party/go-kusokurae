@@ -4,8 +4,8 @@
 // ignores needs no such guard. It also keeps a C++ toolchain out of the
 // requirements for building the Go package.
 //
-//	gcc -std=gnu11   -I sm -c sm/sm.c -o /tmp/sm.o
-//	g++ -std=gnu++11 -I sm -o /tmp/kusokurae_test sm/_test_main.cxx /tmp/sm.o
+//	gcc -std=c17   -I sm -c sm/sm.c -o /tmp/sm.o
+//	g++ -std=c++17 -I sm -o /tmp/kusokurae_test sm/_test_main.cxx /tmp/sm.o
 
 #include <cstdio>
 #include <cstring>

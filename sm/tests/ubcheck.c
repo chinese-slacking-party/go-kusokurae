@@ -5,7 +5,7 @@
 // are fixed on branch fix/round-score-ub; against a tree without that fix this
 // program still reports them, which is the intended demonstration.
 //
-//	gcc -std=gnu11 -fsanitize=undefined,address -I .. -o /tmp/ubcheck ubcheck.c ../sm.c
+//	gcc -std=c17 -fsanitize=undefined,address -I .. -o /tmp/ubcheck ubcheck.c ../sm.c
 //	/tmp/ubcheck
 //
 // A clean run prints only the summary line.

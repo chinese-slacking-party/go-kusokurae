@@ -6,7 +6,7 @@
 // affect the exit code, but if one starts passing it is reported so the marker
 // can be removed. Any other failure exits non-zero.
 //
-//	gcc -std=gnu11 -I .. -o /tmp/rulecheck rulecheck.c ../sm.c && /tmp/rulecheck
+//	gcc -std=c17 -I .. -o /tmp/rulecheck rulecheck.c ../sm.c && /tmp/rulecheck
 
 #include <stdio.h>
 #include <string.h>

@@ -1,7 +1,7 @@
 // Checks the engine's own generator and its seeding -- the parts the Go
 // binding normally hides behind its own PRNG bridge.
 //
-//	gcc -std=gnu11 -fsanitize=address,undefined -I .. -o /tmp/nativeprng nativeprng.c ../sm.c
+//	gcc -std=c17 -fsanitize=address,undefined -I .. -o /tmp/nativeprng nativeprng.c ../sm.c
 //	/tmp/nativeprng
 
 #include <stdio.h>

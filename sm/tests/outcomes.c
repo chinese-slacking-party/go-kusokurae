@@ -8,7 +8,7 @@
 // Structural invariants are checked on every game; a violation exits non-zero.
 // The statistics themselves are reported, not asserted.
 //
-//	gcc -O2 -std=gnu11 -I .. -o /tmp/outcomes outcomes.c ../sm.c && /tmp/outcomes
+//	gcc -O2 -std=c17 -I .. -o /tmp/outcomes outcomes.c ../sm.c && /tmp/outcomes
 
 #include <stdint.h>
 #include <stdio.h>

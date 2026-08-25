@@ -10,7 +10,7 @@
 // generator used to look like back when the callback returned int16_t and half
 // its values wrapped to negative.
 //
-//	gcc -std=gnu11 -fsanitize=address -I .. -o /tmp/prngcontract prngcontract.c ../sm.c
+//	gcc -std=c17 -fsanitize=address -I .. -o /tmp/prngcontract prngcontract.c ../sm.c
 //	/tmp/prngcontract
 
 #include <stdio.h>
