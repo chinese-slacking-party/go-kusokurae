@@ -61,7 +61,7 @@ func goGameStateCB(self *C.kusokurae_game_state_t, newstate C.int32_t, userdata 
 func init() {
 	C.kusokurae_global_init()
 	C.set_prng()
-	callbackMap = make(map[int32]func(GameStatus))
+	callbackMap = make(map[uint64]func(GameStatus))
 }
 
 var cbs = GameCallbacks{
@@ -185,12 +185,12 @@ type GameState struct {
 	// ------- -------
 	// We can't put actual function variable here, because runtime will complain
 	// about cgo argument containing Go pointer.
-	goStateCallbackNo int32
+	goStateCallbackNo uint64
 }
 
 var (
-	nextCBNo    int32
-	callbackMap map[int32]func(GameStatus)
+	nextCBNo    uint64
+	callbackMap map[uint64]func(GameStatus)
 )
 
 // RoundState corresponds to C.kusokurae_round_state_t, but does not preserve
@@ -310,9 +310,9 @@ func NewGame(cfg GameConfig, stateFn func(GameStatus)) (ret *GameState, err erro
 }
 
 func (g *GameState) init(cfg GameConfig, stateFn func(GameStatus)) error {
-	var cbNo int32
+	var cbNo uint64
 	if stateFn != nil {
-		cbNo = atomic.AddInt32(&nextCBNo, 1)
+		cbNo = atomic.AddUint64(&nextCBNo, 1)
 		callbackMap[cbNo] = stateFn
 	}
 	g.goStateCallbackNo = cbNo
