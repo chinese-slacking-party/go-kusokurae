@@ -373,7 +373,8 @@ func (g *GameState) GetStatus() GameStatus {
 
 // Seed seeds the random number generator used for dealing.
 // It should be called after creation and before Start().
-// The seed is a 32-byte array. Fill all 32 bytes with random bits whatever the generator is.
+// The seed is a 32-byte array. Fill all 32 bytes with random bits whatever the
+// generator is.
 func (g *GameState) Seed(seed [32]byte) error {
 	return errcode2Go(C.kusokurae_game_seed(g.cPtr(), (*C.uint8_t)(unsafe.Pointer(&seed[0]))))
 }

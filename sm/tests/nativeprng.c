@@ -162,8 +162,22 @@ static void check_manual_seed(void) {
     }
 
     // 1. Same seed -> same deal
+    
     kusokurae_game_init(&g1, &cfg, NULL);
-    kusokurae_game_seed(&g1, seed1);
+    uint64_t initial_rng[4];
+    memcpy(initial_rng, g1.rng_state, sizeof(initial_rng));
+
+    uint8_t zero_seed[KUSOKURAE_SEED_BYTES] = {0};
+    kusokurae_error_t err_zero = kusokurae_game_seed(&g1, zero_seed);
+    report("全零种子返回 KUSOKURAE_ERROR_INVALID_SEED", err_zero == KUSOKURAE_ERROR_INVALID_SEED);
+    report("拒绝全零种子时不修改状态", memcmp(initial_rng, g1.rng_state, sizeof(initial_rng)) == 0);
+
+    kusokurae_error_t err_null = kusokurae_game_seed(NULL, seed1);
+    report("传入 NULL 指针返回 KUSOKURAE_ERROR_NULLPTR", err_null == KUSOKURAE_ERROR_NULLPTR);
+    
+    kusokurae_game_init(&g1, &cfg, NULL);
+    kusokurae_error_t err = kusokurae_game_seed(&g1, seed1);
+    report("合法的种子返回 KUSOKURAE_SUCCESS", err == KUSOKURAE_SUCCESS);
     kusokurae_game_start(&g1);
 
     kusokurae_game_init(&g2, &cfg, NULL);
@@ -201,11 +215,10 @@ static void check_manual_seed(void) {
             deal1[p][j] = g1.players[p].cards[j].display_order;
         }
     }
-    
+
     // Simulate reusing the state across games.
-    g1.status = KUSOKURAE_STATUS_INIT;
     kusokurae_game_start(&g1);
-    
+
     int stream_continues = 0;
     for (int p = 0; p < NP; p++) {
         for (int j = 0; j < HAND; j++) {
@@ -218,6 +231,8 @@ static void check_manual_seed(void) {
     report("连续多次 Start() 随机流不会重复", stream_continues);
 
     // 4. Golden deal
+    // Note: This golden deal is tied to ms_rand. It will have to be
+    // regenerated when the default generator changes.
     static const uint32_t golden_p0[] = {33, 29, 20, 19, 16, 13, 12, 11, 8, 7, 5};
     int golden_ok = 1;
     for (int j = 0; j < HAND; j++) {

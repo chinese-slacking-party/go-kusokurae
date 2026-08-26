@@ -238,7 +238,8 @@ void kusokurae_set_prng(int (*fn)(void *)) {
     }
 }
 
-kusokurae_error_t kusokurae_game_seed(kusokurae_game_state_t *self, const uint8_t seed[static KUSOKURAE_SEED_BYTES]) {
+kusokurae_error_t kusokurae_game_seed(kusokurae_game_state_t *self,
+                                      const uint8_t seed[static KUSOKURAE_SEED_BYTES]) {
     if (self == NULL || seed == NULL) {
         return KUSOKURAE_ERROR_NULLPTR;
     }

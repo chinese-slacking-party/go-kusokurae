@@ -233,7 +233,8 @@ typedef struct kusokurae_game_state_t {
 
 // The expected size in bytes of a manual PRNG seed.
 #define KUSOKURAE_SEED_BYTES 32
-static_assert(KUSOKURAE_SEED_BYTES == sizeof(uint64_t) * 4, "KUSOKURAE_SEED_BYTES must match rng_state size");
+static_assert(KUSOKURAE_SEED_BYTES == sizeof(((struct kusokurae_game_state_t *)0)->rng_state),
+              "KUSOKURAE_SEED_BYTES must match rng_state size");
 
 // The layout contract, in the order it has to hold.
 //
@@ -299,11 +300,12 @@ void kusokurae_set_prng(int (*fn)(void *));
 // kusokurae_game_seed seeds the PRNG. The bytes belong to the caller.
 // Seeding goes after kusokurae_game_init() and before kusokurae_game_start().
 // Uniformly random bits are all that is required.
-// Byte order is host-dependent: a seed replayed on an architecture with different
-// endianness will yield a different state and deal.
-// Note that all-zero is the one pattern the default generator rejects -- which
+// Byte order is host-dependent: a seed replayed on an architecture with
+// different endianness will yield a different state and deal.
+// Note that all-zero is the one pattern this function rejects -- which
 // no real entropy source will produce.
-kusokurae_error_t kusokurae_game_seed(kusokurae_game_state_t *self, const uint8_t seed[static KUSOKURAE_SEED_BYTES]);
+kusokurae_error_t kusokurae_game_seed(kusokurae_game_state_t *self,
+                                      const uint8_t seed[static KUSOKURAE_SEED_BYTES]);
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
                                       kusokurae_game_config_t *cfg,
