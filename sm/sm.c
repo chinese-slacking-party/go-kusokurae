@@ -238,11 +238,22 @@ void kusokurae_set_prng(int (*fn)(void *)) {
     }
 }
 
-void kusokurae_game_seed(kusokurae_game_state_t *self, const uint8_t seed[32]) {
+kusokurae_error_t kusokurae_game_seed(kusokurae_game_state_t *self, const uint8_t seed[static KUSOKURAE_SEED_BYTES]) {
     if (self == NULL || seed == NULL) {
-        return;
+        return KUSOKURAE_ERROR_NULLPTR;
     }
-    memmove(self->rng_state, seed, sizeof(self->rng_state));
+    int all_zero = 1;
+    for (int i = 0; i < KUSOKURAE_SEED_BYTES; i++) {
+        if (seed[i] != 0) {
+            all_zero = 0;
+            break;
+        }
+    }
+    if (all_zero) {
+        return KUSOKURAE_ERROR_INVALID_SEED;
+    }
+    memmove(self->rng_state, seed, KUSOKURAE_SEED_BYTES);
+    return KUSOKURAE_SUCCESS;
 }
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
