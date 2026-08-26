@@ -160,6 +160,7 @@ typedef enum {
     KUSOKURAE_ERROR_BUG_NOBODY_ACTIVE,
     KUSOKURAE_ERROR_CARD_NOT_FOUND,
     KUSOKURAE_ERROR_FORBIDDEN_MOVE,
+    KUSOKURAE_ERROR_INVALID_SEED,
 
     KUSOKURAE_ERROR_UNIMPLEMENTED,
     KUSOKURAE_ERROR_UNSPECIFIED,
@@ -230,6 +231,11 @@ typedef struct kusokurae_game_state_t {
 // plain data with a build-independent layout; cbs is host pointers.
 #define KUSOKURAE_SAVE_BYTES (offsetof(kusokurae_game_state_t, cbs))
 
+// The expected size in bytes of a manual PRNG seed.
+#define KUSOKURAE_SEED_BYTES 32
+static_assert(KUSOKURAE_SEED_BYTES == sizeof(((struct kusokurae_game_state_t *)0)->rng_state),
+              "KUSOKURAE_SEED_BYTES must match rng_state size");
+
 // The layout contract, in the order it has to hold.
 //
 // Padding: if the compiler inserted a single byte anywhere before cbs, the
@@ -290,6 +296,16 @@ void kusokurae_global_init();
 // player still receives the right number of cards, because sample() in sm.c
 // bounds the selection, but the deal stops being uniform.
 void kusokurae_set_prng(int (*fn)(void *));
+
+// kusokurae_game_seed seeds the PRNG. The bytes belong to the caller.
+// Seeding goes after kusokurae_game_init() and before kusokurae_game_start().
+// Uniformly random bits are all that is required.
+// Byte order is host-dependent: a seed replayed on an architecture with
+// different endianness will yield a different state and deal.
+// Note that all-zero is the one pattern this function rejects -- which
+// no real entropy source will produce.
+kusokurae_error_t kusokurae_game_seed(kusokurae_game_state_t *self,
+                                      const uint8_t seed[static KUSOKURAE_SEED_BYTES]);
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
                                       kusokurae_game_config_t *cfg,

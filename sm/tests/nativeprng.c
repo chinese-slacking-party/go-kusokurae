@@ -144,12 +144,113 @@ static void check_deals(void) {
     report("鬼牌均匀落到每个座位", ok);
 }
 
+
+static void check_manual_seed(void) {
+    enum { NP = 3, HAND = KUSOKURAE_DECK_SIZE / NP };
+    kusokurae_game_config_t cfg = {.np = NP, .first_player_idx = 0};
+    kusokurae_game_state_t g1, g2;
+    int ok = 1;
+
+    memset(&g1, 0, sizeof(g1));
+    memset(&g2, 0, sizeof(g2));
+
+    uint8_t seed1[KUSOKURAE_SEED_BYTES];
+    uint8_t seed2[KUSOKURAE_SEED_BYTES];
+    for (int i = 0; i < KUSOKURAE_SEED_BYTES; i++) {
+        seed1[i] = (uint8_t)(i * 17 + 11);
+        seed2[i] = (uint8_t)(i * 19 + 13);
+    }
+
+    // 1. Same seed -> same deal
+    
+    kusokurae_game_init(&g1, &cfg, NULL);
+    uint64_t initial_rng[4];
+    memcpy(initial_rng, g1.rng_state, sizeof(initial_rng));
+
+    uint8_t zero_seed[KUSOKURAE_SEED_BYTES] = {0};
+    kusokurae_error_t err_zero = kusokurae_game_seed(&g1, zero_seed);
+    report("全零种子返回 KUSOKURAE_ERROR_INVALID_SEED", err_zero == KUSOKURAE_ERROR_INVALID_SEED);
+    report("拒绝全零种子时不修改状态", memcmp(initial_rng, g1.rng_state, sizeof(initial_rng)) == 0);
+
+    kusokurae_error_t err_null = kusokurae_game_seed(NULL, seed1);
+    report("传入 NULL 指针返回 KUSOKURAE_ERROR_NULLPTR", err_null == KUSOKURAE_ERROR_NULLPTR);
+    
+    kusokurae_game_init(&g1, &cfg, NULL);
+    kusokurae_error_t err = kusokurae_game_seed(&g1, seed1);
+    report("合法的种子返回 KUSOKURAE_SUCCESS", err == KUSOKURAE_SUCCESS);
+    kusokurae_game_start(&g1);
+
+    kusokurae_game_init(&g2, &cfg, NULL);
+    kusokurae_game_seed(&g2, seed1);
+    kusokurae_game_start(&g2);
+
+    for (int p = 0; p < NP; p++) {
+        for (int j = 0; j < HAND; j++) {
+            if (g1.players[p].cards[j].display_order != g2.players[p].cards[j].display_order) {
+                ok = 0;
+            }
+        }
+    }
+    report("相同的种子产生相同的发牌", ok);
+
+    // 2. Different seed -> different deal
+    kusokurae_game_init(&g2, &cfg, NULL);
+    kusokurae_game_seed(&g2, seed2);
+    kusokurae_game_start(&g2);
+    int diff = 0;
+    for (int p = 0; p < NP; p++) {
+        for (int j = 0; j < HAND; j++) {
+            if (g1.players[p].cards[j].display_order != g2.players[p].cards[j].display_order) {
+                diff = 1;
+                break;
+            }
+        }
+    }
+    report("不同的种子产生不同的发牌", diff);
+
+    // 3. Seed once, start twice -> stream continues (deal 2 != deal 1)
+    uint32_t deal1[NP][HAND];
+    for (int p = 0; p < NP; p++) {
+        for (int j = 0; j < HAND; j++) {
+            deal1[p][j] = g1.players[p].cards[j].display_order;
+        }
+    }
+
+    // Simulate reusing the state across games.
+    kusokurae_game_start(&g1);
+
+    int stream_continues = 0;
+    for (int p = 0; p < NP; p++) {
+        for (int j = 0; j < HAND; j++) {
+            if (g1.players[p].cards[j].display_order != deal1[p][j]) {
+                stream_continues = 1;
+                break;
+            }
+        }
+    }
+    report("连续多次 Start() 随机流不会重复", stream_continues);
+
+    // 4. Golden deal
+    // Note: This golden deal is tied to ms_rand. It will have to be
+    // regenerated when the default generator changes.
+    static const uint32_t golden_p0[] = {33, 29, 20, 19, 16, 13, 12, 11, 8, 7, 5};
+    int golden_ok = 1;
+    for (int j = 0; j < HAND; j++) {
+        if (deal1[0][j] != golden_p0[j]) {
+            golden_ok = 0;
+            break;
+        }
+    }
+    report("固定的种子产生固定的发牌 (Golden Deal)", golden_ok);
+}
+
 int main(void) {
     kusokurae_global_init();
     check_golden();
     check_range();
     check_seed_varies();
     check_deals();
+    check_manual_seed();
     printf("\n%d 项失败\n", failures);
     return failures ? 1 : 0;
 }

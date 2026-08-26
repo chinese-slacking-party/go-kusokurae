@@ -113,6 +113,7 @@ var (
 	ErrBugNobodyActive = errors.New("KUSOKURAE_ERROR_BUG_NOBODY_ACTIVE")
 	ErrCardNotFound    = errors.New("KUSOKURAE_ERROR_CARD_NOT_FOUND")
 	ErrForbiddenMove   = errors.New("KUSOKURAE_ERROR_FORBIDDEN_MOVE")
+	ErrInvalidSeed     = errors.New("KUSOKURAE_ERROR_INVALID_SEED")
 
 	ErrUnknown = errors.New("Unknown")
 )
@@ -127,6 +128,7 @@ var errMap = map[C.kusokurae_error_t]error{
 	C.KUSOKURAE_ERROR_BUG_NOBODY_ACTIVE:     ErrBugNobodyActive,
 	C.KUSOKURAE_ERROR_CARD_NOT_FOUND:        ErrCardNotFound,
 	C.KUSOKURAE_ERROR_FORBIDDEN_MOVE:        ErrForbiddenMove,
+	C.KUSOKURAE_ERROR_INVALID_SEED:          ErrInvalidSeed,
 }
 
 // GameConfig has the same memory layout with C.kusokurae_game_config_t.
@@ -367,6 +369,14 @@ func (g *GameState) SetConfig(cfg GameConfig) error {
 // GetStatus returns g's status.
 func (g *GameState) GetStatus() GameStatus {
 	return g.status
+}
+
+// Seed seeds the random number generator used for dealing.
+// It should be called after creation and before Start().
+// The seed is a 32-byte array. Fill all 32 bytes with random bits whatever the
+// generator is.
+func (g *GameState) Seed(seed [32]byte) error {
+	return errcode2Go(C.kusokurae_game_seed(g.cPtr(), (*C.uint8_t)(unsafe.Pointer(&seed[0]))))
 }
 
 // Start deals cards to each player and begins waiting for play from the first
