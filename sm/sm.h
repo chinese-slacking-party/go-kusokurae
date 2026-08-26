@@ -233,6 +233,16 @@ typedef struct kusokurae_game_state_t {
 
 // The expected size in bytes of a manual PRNG seed.
 #define KUSOKURAE_SEED_BYTES 32
+
+// C99 lets a parameter declare a minimum array length, which makes a short
+// buffer or a literal NULL diagnosable at the call site. C++ has no such
+// syntax, and this header is included from C++ -- see _test_main.cxx -- so
+// there the bound is documentation only.
+#ifdef __cplusplus
+#define KUSOKURAE_SEED_BOUND KUSOKURAE_SEED_BYTES
+#else
+#define KUSOKURAE_SEED_BOUND static KUSOKURAE_SEED_BYTES
+#endif
 static_assert(KUSOKURAE_SEED_BYTES == sizeof(((struct kusokurae_game_state_t *)0)->rng_state),
               "KUSOKURAE_SEED_BYTES must match rng_state size");
 
@@ -305,7 +315,7 @@ void kusokurae_set_prng(int (*fn)(void *));
 // Note that all-zero is the one pattern this function rejects -- which
 // no real entropy source will produce.
 kusokurae_error_t kusokurae_game_seed(kusokurae_game_state_t *self,
-                                      const uint8_t seed[static KUSOKURAE_SEED_BYTES]);
+                                      const uint8_t seed[KUSOKURAE_SEED_BOUND]);
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
                                       kusokurae_game_config_t *cfg,
