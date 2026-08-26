@@ -109,6 +109,7 @@ var (
 	ErrBadNPlayers     = errors.New("KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS")
 	ErrUninitialized   = errors.New("KUSOKURAE_ERROR_UNINITIALIZED")
 	ErrNotInGame       = errors.New("KUSOKURAE_ERROR_NOT_IN_GAME")
+	ErrGameInProgress  = errors.New("KUSOKURAE_ERROR_GAME_IN_PROGRESS")
 	ErrBugNobodyActive = errors.New("KUSOKURAE_ERROR_BUG_NOBODY_ACTIVE")
 	ErrCardNotFound    = errors.New("KUSOKURAE_ERROR_CARD_NOT_FOUND")
 	ErrForbiddenMove   = errors.New("KUSOKURAE_ERROR_FORBIDDEN_MOVE")
@@ -122,6 +123,7 @@ var errMap = map[C.kusokurae_error_t]error{
 	C.KUSOKURAE_ERROR_BAD_NUMBER_OF_PLAYERS: ErrBadNPlayers,
 	C.KUSOKURAE_ERROR_UNINITIALIZED:         ErrUninitialized,
 	C.KUSOKURAE_ERROR_NOT_IN_GAME:           ErrNotInGame,
+	C.KUSOKURAE_ERROR_GAME_IN_PROGRESS:      ErrGameInProgress,
 	C.KUSOKURAE_ERROR_BUG_NOBODY_ACTIVE:     ErrBugNobodyActive,
 	C.KUSOKURAE_ERROR_CARD_NOT_FOUND:        ErrCardNotFound,
 	C.KUSOKURAE_ERROR_FORBIDDEN_MOVE:        ErrForbiddenMove,
@@ -336,6 +338,30 @@ func (g *GameState) cPtr() *C.kusokurae_game_state_t {
 // GetConfig returns a copy of cfg.
 func (g *GameState) GetConfig() GameConfig {
 	return g.cfg
+}
+
+// SetConfig updates the game configuration on an existing GameState.
+// It allows a GameState to be reused across multiple games in the same room.
+// Returns ErrGameInProgress if a game is currently in progress (StatusPlay),
+// or ErrBadNPlayers if NumPlayers is not supported (not 3 or 4).
+func (g *GameState) SetConfig(cfg GameConfig) error {
+	if g.status == StatusPlay {
+		return ErrGameInProgress
+	}
+	if cfg.NumPlayers < 3 || cfg.NumPlayers > C.KUSOKURAE_MAX_PLAYERS {
+		return ErrBadNPlayers
+	}
+	g.cfg = GameConfig{
+		NumPlayers:     cfg.NumPlayers,
+		FirstPlayerIdx: cfg.FirstPlayerIdx,
+	}
+	for i := int32(0); i < g.cfg.NumPlayers; i++ {
+		g.players[i].index = i + 1
+	}
+	for i := g.cfg.NumPlayers; i < C.KUSOKURAE_MAX_PLAYERS; i++ {
+		g.players[i] = Player{}
+	}
+	return nil
 }
 
 // GetStatus returns g's status.

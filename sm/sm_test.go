@@ -194,3 +194,88 @@ func TestGameStartFirstPlayerOutOfRangeWraps(t *testing.T) {
 		assert.LessOrEqual(t, ap.index, int32(3))
 	}
 }
+
+func TestSetConfig(t *testing.T) {
+	t.Run("before start", func(t *testing.T) {
+		state, err := NewGame(GameConfig{
+			NumPlayers: 3,
+		}, nil)
+		assert.NoError(t, err)
+
+		newCfg := GameConfig{
+			NumPlayers:     4,
+			FirstPlayerIdx: 2,
+		}
+		err = state.SetConfig(newCfg)
+		assert.NoError(t, err)
+		assert.Equal(t, newCfg.NumPlayers, state.GetConfig().NumPlayers)
+		assert.Equal(t, newCfg.FirstPlayerIdx, state.GetConfig().FirstPlayerIdx)
+		assert.Equal(t, int32(4), state.players[3].index)
+
+		err = state.Start()
+		assert.NoError(t, err)
+		assert.Equal(t, StatusPlay, state.GetStatus())
+		assert.Equal(t, int32(3), state.GetActivePlayer().index)
+	})
+
+	t.Run("during play rejected", func(t *testing.T) {
+		state, err := NewGame(GameConfig{
+			NumPlayers: 3,
+		}, nil)
+		assert.NoError(t, err)
+		err = state.Start()
+		assert.NoError(t, err)
+		assert.Equal(t, StatusPlay, state.GetStatus())
+
+		err = state.SetConfig(GameConfig{NumPlayers: 4})
+		assert.Equal(t, ErrGameInProgress, err)
+		assert.Equal(t, int32(3), state.GetConfig().NumPlayers)
+	})
+
+	t.Run("invalid player count", func(t *testing.T) {
+		state, err := NewGame(GameConfig{
+			NumPlayers: 3,
+		}, nil)
+		assert.NoError(t, err)
+
+		assert.Equal(t, ErrBadNPlayers, state.SetConfig(GameConfig{NumPlayers: 2}))
+		assert.Equal(t, ErrBadNPlayers, state.SetConfig(GameConfig{NumPlayers: 5}))
+		assert.Equal(t, int32(3), state.GetConfig().NumPlayers)
+	})
+
+	t.Run("between finished games", func(t *testing.T) {
+		state, err := NewGame(GameConfig{
+			NumPlayers: 3,
+		}, nil)
+		assert.NoError(t, err)
+		err = state.Start()
+		assert.NoError(t, err)
+
+		// Play out the game to completion
+		for state.GetStatus() == StatusPlay {
+			p := state.GetActivePlayer()
+			assert.NotNil(t, p)
+			idx := PickLargestPlayable(p.GetHandCards())
+			assert.GreaterOrEqual(t, idx, 0)
+			err = state.Play(p.GetHandCards()[idx])
+			assert.NoError(t, err)
+		}
+		assert.Equal(t, StatusFinish, state.GetStatus())
+
+		// Reconfigure to 4 players for next game
+		newCfg := GameConfig{
+			NumPlayers:     4,
+			FirstPlayerIdx: 1,
+		}
+		err = state.SetConfig(newCfg)
+		assert.NoError(t, err)
+		assert.Equal(t, newCfg.NumPlayers, state.GetConfig().NumPlayers)
+
+		// Start second game with new configuration
+		err = state.Start()
+		assert.NoError(t, err)
+		assert.Equal(t, StatusPlay, state.GetStatus())
+		assert.Equal(t, int32(2), state.GetActivePlayer().index)
+	})
+}
+
