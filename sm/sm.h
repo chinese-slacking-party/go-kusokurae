@@ -291,6 +291,13 @@ void kusokurae_global_init();
 // bounds the selection, but the deal stops being uniform.
 void kusokurae_set_prng(int (*fn)(void *));
 
+// kusokurae_game_seed seeds the PRNG. The bytes belong to the caller.
+// Seeding goes after kusokurae_game_init() and before kusokurae_game_start().
+// Uniformly random bits are all that is required.
+// Note that all-zero is the one pattern the default generator rejects — which
+// no real entropy source will produce.
+void kusokurae_game_seed(kusokurae_game_state_t *self, const uint8_t seed[32]);
+
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
                                       kusokurae_game_config_t *cfg,
                                       kusokurae_game_callbacks_t *cbs);

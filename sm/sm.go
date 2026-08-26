@@ -371,6 +371,14 @@ func (g *GameState) GetStatus() GameStatus {
 
 // Start deals cards to each player and begins waiting for play from the first
 // player.
+// Seed seeds the random number generator used for dealing.
+// It should be called after creation and before Start().
+// The seed is a 32-byte array. If the active PRNG requires less entropy,
+// the remaining bytes should be zero-padded.
+func (g *GameState) Seed(seed [32]byte) {
+	C.kusokurae_game_seed(g.cPtr(), (*C.uint8_t)(unsafe.Pointer(&seed[0])))
+}
+
 func (g *GameState) Start() (err error) {
 	err = errcode2Go(C.kusokurae_game_start(g.cPtr()))
 	return

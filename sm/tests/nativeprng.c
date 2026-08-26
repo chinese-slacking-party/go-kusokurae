@@ -144,12 +144,45 @@ static void check_deals(void) {
     report("鬼牌均匀落到每个座位", ok);
 }
 
+static void check_manual_seed(void) {
+    enum { NP = 3, HAND = KUSOKURAE_DECK_SIZE / NP };
+    kusokurae_game_config_t cfg = {.np = NP, .first_player_idx = 0};
+    kusokurae_game_state_t g1, g2;
+    int ok = 1;
+
+    memset(&g1, 0, sizeof(g1));
+    memset(&g2, 0, sizeof(g2));
+
+    uint8_t seed[32] = {0};
+    seed[0] = 0x12;
+    seed[1] = 0x34;
+
+    kusokurae_game_init(&g1, &cfg, NULL);
+    kusokurae_game_seed(&g1, seed);
+    kusokurae_game_start(&g1);
+
+    kusokurae_game_init(&g2, &cfg, NULL);
+    kusokurae_game_seed(&g2, seed);
+    kusokurae_game_start(&g2);
+
+    for (int p = 0; p < NP; p++) {
+        for (int j = 0; j < HAND; j++) {
+            if (g1.players[p].cards[j].display_order != g2.players[p].cards[j].display_order) {
+                ok = 0;
+                break;
+            }
+        }
+    }
+    report("相同的种子产生相同的发牌 (Option A API)", ok);
+}
+
 int main(void) {
     kusokurae_global_init();
     check_golden();
     check_range();
     check_seed_varies();
     check_deals();
+    check_manual_seed();
     printf("\n%d 项失败\n", failures);
     return failures ? 1 : 0;
 }
