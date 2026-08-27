@@ -14,6 +14,13 @@ go run ./experimental/online/            # HTTP/WebSocket game server (port 8080
 go build -o server ./experimental/online/
 ```
 
+Server-wide settings (turn timing defaults, validation bounds, HTTP port) are
+configured via environment variables / a `.env` file — see `config/` and
+`.env.example`. Precedence: real env vars > `.env` file > built-in defaults.
+`main.go` loads them with `config.Load()` and pushes them into `gameserver`
+via `gameserver.Configure(...)` before serving; missing keys fall back to
+defaults, invalid values abort startup.
+
 ## Architecture
 
 Three layers, bottom-up:

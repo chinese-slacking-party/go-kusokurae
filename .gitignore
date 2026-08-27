@@ -22,3 +22,6 @@ debug
 # AI artifacts
 .claude
 .superpowers
+
+# Local environment config (see .env.example)
+.env
