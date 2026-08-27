@@ -268,7 +268,7 @@ func (r *Room) handlePlayerMessage(idx int, msg Message) {
 
 	case MSG_TYPE_LEAVE_ROOM:
 		if int(p.RoomPosition) == int(r.HostPlayerIdx) {
-			r.Destroy("host_left")
+			r.destroyInternal("host_left")
 		} else if s := r.sessions[p.RoomPosition]; s != nil {
 			// Non-host leave: equivalent to disconnecting this player.
 			s.Detach()
@@ -378,7 +378,7 @@ func (r *Room) handleDisconnect(idx int) {
 
 	// The host owns the room: its departure destroys it.
 	if idx == int(r.HostPlayerIdx) {
-		r.Destroy("host_left")
+		r.destroyInternal("host_left")
 	}
 }
 
@@ -389,12 +389,22 @@ func (r *Room) handleGameEnd() {
 	r.game.Store(nil)
 }
 
-// Destroy tears the room down: removes it from the repository, terminates any
+// Destroy 可以从任意 goroutine 调用。
+func (r *Room) Destroy(reason string) {
+	done := make(chan struct{})
+	r.internalCh <- func() {
+		r.destroyInternal(reason)
+		close(done)
+	}
+	<-done
+}
+
+// destroyInternal tears the room down: removes it from the repository, terminates any
 // running game, notifies the other players, stops the room goroutine, closes
 // the game's channels, disconnects all sessions and closes player channels.
 // Idempotent (sync.Once). Must be called from the run() goroutine: it keeps
 // run() alive to drain EventCh while the game goroutine exits.
-func (r *Room) Destroy(reason string) {
+func (r *Room) destroyInternal(reason string) {
 	r.destroyOnce.Do(func() {
 		log.Printf("Room %s destroying: %s\n", trunc8(r.ID), reason)
 
