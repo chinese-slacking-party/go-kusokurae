@@ -14,14 +14,31 @@ import (
 
 const MaxPlayers = 4
 
-const (
+// Server-wide turn timing defaults and API validation bounds. They are
+// package variables, not constants: Configure sets them once at startup from
+// the environment (see the config package); between startup and process exit
+// they are read-only for every goroutine.
+var (
 	DefaultTurnTimeout      = 30 * time.Second
-	MinTurnTimeoutSec       = 5
-	MaxTurnTimeoutSec       = 120
 	DefaultTurnSyncInterval = 5 * time.Second
-	MinTurnSyncIntervalSec  = 1
-	MaxTurnSyncIntervalSec  = 60
+	MinTurnTimeoutSec       = int32(5)
+	MaxTurnTimeoutSec       = int32(120)
+	MinTurnSyncIntervalSec  = int32(1)
+	MaxTurnSyncIntervalSec  = int32(60)
 )
+
+// Configure sets the server-wide turn timing defaults and validation bounds.
+// It must be called exactly once before any game starts; afterwards the
+// values are read by all goroutines without a lock (see the note on the vars
+// above).
+func Configure(defaultTurnTimeout, defaultTurnSyncInterval time.Duration, minTimeoutSec, maxTimeoutSec, minSyncSec, maxSyncSec int32) {
+	DefaultTurnTimeout = defaultTurnTimeout
+	DefaultTurnSyncInterval = defaultTurnSyncInterval
+	MinTurnTimeoutSec = minTimeoutSec
+	MaxTurnTimeoutSec = maxTimeoutSec
+	MinTurnSyncIntervalSec = minSyncSec
+	MaxTurnSyncIntervalSec = maxSyncSec
+}
 
 // ValidateTurnTimeoutSec checks a turn timeout value in seconds.
 // 0 means "use the default" and is always valid.

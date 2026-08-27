@@ -73,9 +73,18 @@ go build ./...                           # 编译所有包（需要 C 编译器�
 go test ./...                            # 运行所有测试
 go test ./sm/                            # 仅运行引擎测试
 go run ./experimental/selfplay/          # 终端自玩客户端
-go run ./experimental/online/            # 启动在线游戏服务器（端口 8080）
+go run ./experimental/online/            # 启动在线游戏服务器（默认端口 8080）
 go build -o server ./experimental/online/
 ```
+
+## 配置
+
+服务器设置通过环境变量 / `.env` 文件配置，优先级：**真实环境变量 > .env 文件 > 内置默认值**。缺失的键回落到内置默认；非法或自相矛盾的值会导致启动失败。
+
+- 复制 `.env.example` 为 `.env` 即可开始自定义；`.env` 已在 .gitignore 中，不入库
+- `.env` 文件路径可用真实环境变量 `KUSOKURAE_ENV_FILE` 指定（默认工作目录下的 `.env`，文件不存在也没关系）
+- 完整键清单见 `.env.example`（回合计时默认值/校验上下界、HTTP 端口）
+- 每个房间仍可在创建时通过 `turn_timeout_seconds` / `turn_sync_interval_seconds` 覆盖默认值（0 表示用默认）
 
 ## TODO
 
