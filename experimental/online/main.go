@@ -2,10 +2,9 @@ package main
 
 import (
 	"log"
-	"net/http/pprof"
-	_ "net/http/pprof"
 	"time"
 
+	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 
 	"github.com/bs-iron-trio/go-kusokurae/config"
@@ -26,8 +25,10 @@ func main() {
 
 	gameserver.InitRoomRepository()
 	r := gin.Default()
-	if gin.Mode() != "release" {
-		r.GET("/debug/pprof/*any", gin.WrapF(pprof.Index))
+	if gin.Mode() != gin.ReleaseMode {
+		// 逐条注册，不能用 /debug/pprof/*any 兜底：gin 的路由树不允许通配符
+		// 与同前缀下的具体路径共存，两者并存会在启动时 panic。
+		pprof.Register(r)
 	}
 	r.POST("/api/v1/room/new", CreateRoom)
 	r.POST("/api/v1/room/join", JoinRoom)
