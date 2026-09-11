@@ -394,7 +394,9 @@ func (r *Room) handleGameEnd() {
 	r.game.Store(nil)
 }
 
-// Destroy 可以从任意 goroutine 调用。
+// Destroy, like AddPlayer and AttachSession, is intended to be called by the
+// user (from outside of the run() goroutine), because run() is the only goroutine
+// to consume messages, and sending messages from inside will lock up itself.
 func (r *Room) Destroy(reason string) {
 	done := make(chan struct{})
 	select {
@@ -443,16 +445,13 @@ func (r *Room) destroyInternal(reason string) {
 			}
 		}
 
-		// 4. Stop the room goroutine.
-		r.cancel()
-
-		// 5. Close game channels (GameFn is gone; no senders left).
+		// 4. Close game channels (GameFn is gone; no senders left).
 		if g := r.game.Load(); g != nil {
 			close(g.CmdCh)
 			close(g.EventCh)
 		}
 
-		// 6. Disconnect remaining sessions (Close cancels their ctx so I/O
+		// 5. Disconnect remaining sessions (Close cancels their ctx so I/O
 		//    goroutines exit; the room is not reading OperatorCh any more, so
 		//    Input selects ctx.Done rather than a closed-channel send).
 		for i := range r.sessions {
@@ -461,13 +460,16 @@ func (r *Room) destroyInternal(reason string) {
 			}
 		}
 
-		// 7. Close player channels.
+		// 6. Close player channels.
 		for _, p := range r.Players {
 			if p != nil {
 				close(p.NoticeCh)
 				close(p.OperatorCh)
 			}
 		}
+
+		// 7. Stop the room goroutine.
+		r.cancel()
 	})
 }
 
