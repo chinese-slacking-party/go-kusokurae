@@ -278,4 +278,3 @@ func TestSetConfig(t *testing.T) {
 		assert.Equal(t, int32(2), state.GetActivePlayer().index)
 	})
 }
-

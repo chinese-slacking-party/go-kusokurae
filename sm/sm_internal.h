@@ -7,8 +7,8 @@
 extern "C" {
 #endif
 
-#define MASK_PLAYED_IN_ROUND    0x7F
-#define MASK_PLAYABLE           0x80
+#define MASK_PLAYED_IN_ROUND    0x7FU
+#define MASK_PLAYABLE           0x80U
 
 // ms_rand is the default generator: a replica of the LCG behind the
 // Microsoft implementation of C rand(), whose RAND_MAX of 32767 is where
@@ -18,14 +18,14 @@ int ms_rand(void *state);
 
 void game_state_change(kusokurae_game_state_t *g, int32_t newstate);
 
-int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card);
+int player_has_card(const kusokurae_player_t *player, kusokurae_card_t *card);
 void player_drop_card(kusokurae_player_t *player, int index);
 
 void player_set_card_played(kusokurae_player_t *player, int index, int nround);
 void player_set_card_playable(kusokurae_player_t *player, int index, int status);
 void player_set_playable_flags(kusokurae_player_t *player, int is_leader);
 
-kusokurae_player_t *player_find_next(kusokurae_game_state_t *game, kusokurae_player_t *player);
+kusokurae_player_t *player_find_next(kusokurae_game_state_t *game, const kusokurae_player_t *player);
 
 #ifdef __cplusplus
 }

@@ -8,16 +8,16 @@
 static kusokurae_card_t DECK[KUSOKURAE_DECK_SIZE];
 static int (*rng)(void *);
 
-static void sample(void *ptr, size_t count, size_t size,
+static void sample(const void *ptr, size_t count, size_t size,
                    size_t wanted, void *pchosen, void *pdiscarded,
                    void *rng_state) {
-    char *psrc = (char *)ptr, *pdst = (char *)pchosen, *prej = (char *)pdiscarded;
+    const char *psrc = (const char *)ptr;
+    char *pdst = (char *)pchosen, *prej = (char *)pdiscarded;
     size_t rcount = count, rwanted = wanted; // r for remaining
-    int64_t threshold;
-    int dice;
+    int dice, threshold;
     while (rcount > 0) {
         dice = rng(rng_state);
-        threshold = (KUSOKURAE_RAND_MAX + 1ULL) * rwanted / rcount;
+        threshold = (int)((KUSOKURAE_RAND_MAX + 1ULL) * rwanted / rcount);
         //printf("%ld wanted, %ld remaining, %lld/%lld\n", rwanted, rcount, dice, threshold);
         // The two bounds around the dice test are what make "exactly
         // wanted items are chosen" hold for any generator, rather than
@@ -47,7 +47,7 @@ static void sample(void *ptr, size_t count, size_t size,
     }
 }
 
-static int compcard(const void *lhs, const void *rhs) {
+static int compcard_display_order(const void *lhs, const void *rhs) {
     if (((const kusokurae_card_t *)lhs)->display_order > ((const kusokurae_card_t *)rhs)->display_order) {
         return -1;
     } else if (((const kusokurae_card_t *)lhs)->display_order < ((const kusokurae_card_t *)rhs)->display_order) {
@@ -56,17 +56,17 @@ static int compcard(const void *lhs, const void *rhs) {
     return 0;
 }
 
-static int compcard2(const void *lhs, const void *rhs) {
+static int compcard_rank(const void *lhs, const void *rhs) {
     return ((const kusokurae_card_t *)lhs)->rank - ((const kusokurae_card_t *)rhs)->rank;
 }
 
-static int is_zero_card(kusokurae_card_t *p) {
+static int is_zero_card(const kusokurae_card_t *p) {
     // Card assigned in this lib must have display_order set.
     return p->display_order == 0;
 }
 
-static int round_score(kusokurae_game_state_t *g, int *p_bonus_flag) {
-    int ret = 0;
+static int32_t round_score(const kusokurae_game_state_t *g, int *p_bonus_flag) {
+    int32_t ret = 0;
     int bonus_flag;
     if (p_bonus_flag == NULL) {
         // Optionally export Ghostbonus status
@@ -116,7 +116,7 @@ void game_state_change(kusokurae_game_state_t *g, int32_t newstate) {
     g->status = newstate;
 }
 
-int player_has_card(kusokurae_player_t *player, kusokurae_card_t *card) {
+int player_has_card(const kusokurae_player_t *player, kusokurae_card_t *card) {
     for (int i = 0; i < player->ncards; i++) {
         if (player->cards[i].rank == card->rank &&
             player->cards[i].suit == card->suit &&
@@ -132,7 +132,7 @@ void player_drop_card(kusokurae_player_t *player, int index) {
     if (index < 0 || index >= player->ncards) {
         return;
     }
-    memmove(&player->cards[index], &player->cards[index + 1], (--player->ncards - index) * sizeof(kusokurae_card_t));
+    memmove(&player->cards[index], &player->cards[index + 1], (size_t)(--player->ncards - index) * sizeof(kusokurae_card_t));
 }
 
 void player_set_card_played(kusokurae_player_t *player, int index, int nround) {
@@ -185,7 +185,7 @@ void player_set_playable_flags(kusokurae_player_t *player, int is_leader) {
     }
 }
 
-kusokurae_player_t *player_find_next(kusokurae_game_state_t *game, kusokurae_player_t *player) {
+kusokurae_player_t *player_find_next(kusokurae_game_state_t *game, const kusokurae_player_t *player) {
     int index = player->index;
     if (index >= game->cfg.np) {
         index = 0;
@@ -193,7 +193,7 @@ kusokurae_player_t *player_find_next(kusokurae_game_state_t *game, kusokurae_pla
     return &game->players[index];
 }
 
-void kusokurae_global_init() {
+void kusokurae_global_init(void) {
     int i;
     // Special treatment for jokers
     DECK[0].suit = KUSOKURAE_SUIT_BAOZI;
@@ -201,7 +201,7 @@ void kusokurae_global_init() {
     DECK[0].display_order = KUSOKURAE_DECK_SIZE;
     for (i = 1; i < 3; i++) {
         DECK[i] = DECK[0];
-        DECK[i].display_order -= i;
+        DECK[i].display_order -= (uint32_t)i;
     }
     // Place the Ghost on 3rd place, so as to be able to simply skip the first
     // card (one of the 2 Angels) when dealing a 4-player game. It therefore
@@ -215,7 +215,7 @@ void kusokurae_global_init() {
     for (; i < KUSOKURAE_DECK_SIZE; i++) {
         DECK[i].suit = cursuit;
         DECK[i].rank = currank;
-        DECK[i].display_order = KUSOKURAE_DECK_SIZE - i;
+        DECK[i].display_order = (uint32_t)(KUSOKURAE_DECK_SIZE - i);
         if (currank == 0) {
             cursuit = (kusokurae_card_suit_t)((int)cursuit - 1);
             currank = 9;
@@ -258,8 +258,8 @@ kusokurae_error_t kusokurae_game_seed(kusokurae_game_state_t *self,
 }
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
-                                      kusokurae_game_config_t *cfg,
-                                      kusokurae_game_callbacks_t *cbs) {
+                                      const kusokurae_game_config_t *cfg,
+                                      const kusokurae_game_callbacks_t *cbs) {
     if (self == NULL || cfg == NULL) {
         return KUSOKURAE_ERROR_NULLPTR;
     }
@@ -321,7 +321,7 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         deck_base++;
         count--;
     }
-    size_t counteach = count / self->cfg.np;
+    size_t counteach = count / (size_t)(self->cfg.np);
     // At most two remainder areas are used.
     // TODO: more flexible card assignment (e.g. 5~6 players, 2 decks)
     kusokurae_card_t remaining[KUSOKURAE_DECK_SIZE], remaining2[KUSOKURAE_DECK_SIZE];
@@ -344,7 +344,7 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
     for (i = 0; i < self->cfg.np; i++) {
         self->players[i].index = i + 1;
         self->players[i].active = KUSOKURAE_ROUND_WAITING;
-        self->players[i].ncards = counteach;
+        self->players[i].ncards = (int32_t)counteach;
         self->players[i].busted = 0;
         // Starting a new game on a finished state is a documented use of
         // this struct, so the previous game's tally must not carry over.
@@ -413,7 +413,7 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
     if (self->high_ranker_index < 0) {
         self->high_ranker_index = p->index - 1;
     } else {
-        if (compcard2(&self->current_round[self->high_ranker_index],
+        if (compcard_rank(&self->current_round[self->high_ranker_index],
                       &self->current_round[p->index - 1]) < 0) {
             self->high_ranker_index = p->index - 1;
         }
@@ -454,7 +454,7 @@ kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
     return KUSOKURAE_SUCCESS;
 }
 
-int kusokurae_game_is_final_round(kusokurae_game_state_t *self) {
+int kusokurae_game_is_final_round(const kusokurae_game_state_t *self) {
     if (self == NULL) {
         return 1; // End the caller as soon as possible
     }

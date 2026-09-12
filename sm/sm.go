@@ -4,7 +4,7 @@ package sm
 // C11 or later is required by kusokurae_game_init(), which seeds the PRNG through
 // timespec_get(). Standard C17 (-std=c17) without GNU extensions is used for
 // cross-platform and cross-language compatibility.
-#cgo CFLAGS: -std=c17
+#cgo CFLAGS: -std=c17 -Wconversion -Wcast-qual
 #include "sm.h"
 
 extern void goRandom(int *);

@@ -293,7 +293,7 @@ typedef struct {
     kusokurae_card_t moves[KUSOKURAE_MAX_PLAYERS];
 } kusokurae_round_state_t;
 
-void kusokurae_global_init();
+void kusokurae_global_init(void);
 
 // kusokurae_set_prng installs the generator used to deal cards, or leaves the
 // current one in place if fn is NULL. fn receives a pointer to the 32-byte
@@ -318,15 +318,15 @@ kusokurae_error_t kusokurae_game_seed(kusokurae_game_state_t *self,
                                       const uint8_t seed[KUSOKURAE_SEED_BOUND]);
 
 kusokurae_error_t kusokurae_game_init(kusokurae_game_state_t *self,
-                                      kusokurae_game_config_t *cfg,
-                                      kusokurae_game_callbacks_t *cbs);
+                                      const kusokurae_game_config_t *cfg,
+                                      const kusokurae_game_callbacks_t *cbs);
 
 kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self);
 
 kusokurae_error_t kusokurae_game_play(kusokurae_game_state_t *self,
                                       kusokurae_card_t card);
 
-int kusokurae_game_is_final_round(kusokurae_game_state_t *self);
+int kusokurae_game_is_final_round(const kusokurae_game_state_t *self);
 
 kusokurae_player_t *kusokurae_get_active_player(kusokurae_game_state_t *self);
 

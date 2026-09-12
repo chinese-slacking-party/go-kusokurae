@@ -26,7 +26,7 @@
 
 static kusokurae_card_t DECK2[KUSOKURAE_DECK_SIZE];
 
-static int compcard(const void *l, const void *r) {
+static int compcard_display_order(const void *l, const void *r) {
     uint32_t a = ((const kusokurae_card_t *)l)->display_order;
     uint32_t b = ((const kusokurae_card_t *)r)->display_order;
     return a > b ? -1 : (a < b ? 1 : 0);
@@ -87,7 +87,7 @@ static int deal_shuffle_qsort(void *state) {
     }
     for (int p = 0; p < PLAYERS; p++) {
         memmove(hands[p], d + p * HAND, HAND * sizeof(kusokurae_card_t));
-        qsort(hands[p], HAND, sizeof(kusokurae_card_t), compcard);
+        qsort(hands[p], HAND, sizeof(kusokurae_card_t), compcard_display_order);
     }
     return draws;
 }
