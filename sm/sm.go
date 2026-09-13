@@ -95,6 +95,10 @@ func init() {
 	callbackMap = make(map[uint64]func(GameStatus))
 }
 
+// useXoshiroPRNG restores the production generator after a benchmark override.
+// It lives here because set_prng is local to this file's C preamble.
+func useXoshiroPRNG() { C.set_prng() }
+
 var cbs = GameCallbacks{
 	StateTransition: uintptr(C.get_cgo_cb_bridge_ptr()),
 }

@@ -9,8 +9,8 @@ package sm
 
 extern void goRandom(int *);
 
-// Mirrors the bridge sm.go installs in init(): the C engine calls back into Go
-// for every random number it needs.
+// Mirrors the former production bridge: the C engine calls back into Go for
+// every random number it needs. Production now installs Xoshiro256** instead.
 static int test_cgo_random(void *state) {
 	int ret;
 	goRandom(&ret);
@@ -27,7 +27,7 @@ static void use_native_prng(void) {
 	kusokurae_set_prng(&ms_rand);
 }
 
-// Installs a bridge equivalent to the one sm.go's init() installs.
+// Installs a bridge equivalent to the former production generator.
 static void use_cgo_prng(void) {
 	kusokurae_set_prng(&test_cgo_random);
 }
@@ -58,8 +58,8 @@ func randomViaC() int {
 	return int(C.call_bridge_from_c())
 }
 
-// useNativePRNG makes the engine use its built-in PRNG.
+// useNativePRNG selects the C library's legacy ms_rand, not Go's default Xoshiro.
 func useNativePRNG() { C.use_native_prng() }
 
-// useCgoPRNG restores the Go PRNG bridge.
+// useCgoPRNG selects the former Go PRNG bridge.
 func useCgoPRNG() { C.use_cgo_prng() }

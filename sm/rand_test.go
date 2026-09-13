@@ -100,7 +100,7 @@ func BenchmarkPRNGGoRandom(b *testing.B) {
 	_ = sink
 }
 
-// BenchmarkPRNGNativeInC measures the engine's own PRNG called from Go: one
+// BenchmarkPRNGNativeInC measures legacy ms_rand called from Go: one
 // Go -> C crossing plus three arithmetic instructions. Against GoOnly this is
 // essentially the price of a single Go -> C call.
 func BenchmarkPRNGNativeInC(b *testing.B) {
@@ -112,9 +112,9 @@ func BenchmarkPRNGNativeInC(b *testing.B) {
 	_ = sink
 }
 
-// BenchmarkPRNGCgoRoundTrip measures Go -> C -> Go, which is what the engine
-// pays for every dice roll: a call into C plus a callback back into Go, the
-// latter being the expensive direction.
+// BenchmarkPRNGCgoRoundTrip measures Go -> C -> Go. Real dealing enters C once
+// for the whole deal, then pays only C -> Go -> C for each draw, so this control
+// includes an extra Go -> C crossing relative to the per-draw cost in a deal.
 func BenchmarkPRNGCgoRoundTrip(b *testing.B) {
 	var sink int
 	for i := 0; i < b.N; i++ {
@@ -123,26 +123,51 @@ func BenchmarkPRNGCgoRoundTrip(b *testing.B) {
 	_ = sink
 }
 
-// BenchmarkPRNGDealNative and BenchmarkPRNGDealCgo show the aggregate effect on
-// real work: dealing 33 cards to 3 players draws 55 random numbers, so the
-// per-call overhead is multiplied by 55.
+// Compare the same production Start path with only the generator changed.
+// Three players use 55 draws per deal; four players use 72. NewGame and seeding
+// are outside the timer; the state-transition callback remains in all cases.
+// The PRNG override is global, so these benchmarks must not run in parallel.
 func BenchmarkPRNGDealNative(b *testing.B) {
-	useNativePRNG()
-	defer useCgoPRNG()
-	benchmarkDeal(b)
+	benchmarkDeals(b, useNativePRNG)
 }
 
 func BenchmarkPRNGDealCgo(b *testing.B) {
-	useCgoPRNG()
-	benchmarkDeal(b)
+	benchmarkDeals(b, useCgoPRNG)
 }
 
-func benchmarkDeal(b *testing.B) {
+func BenchmarkPRNGDealXoshiro(b *testing.B) {
+	benchmarkDeals(b, useXoshiroPRNG)
+}
+
+func benchmarkDeals(b *testing.B, selectPRNG func()) {
 	b.Helper()
-	g, err := NewGame(GameConfig{NumPlayers: 3}, nil)
+	for _, tc := range []struct {
+		name string
+		np   int32
+	}{{"3P", 3}, {"4P", 4}} {
+		b.Run(tc.name, func(b *testing.B) {
+			selectPRNG()
+			b.Cleanup(useXoshiroPRNG)
+			benchmarkDeal(b, tc.np)
+		})
+	}
+}
+
+func benchmarkDeal(b *testing.B, np int32) {
+	b.Helper()
+	g, err := NewGame(GameConfig{NumPlayers: np}, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
+	// Reproducible native streams. The old Go bridge ignores per-game seeds.
+	var seed [32]byte
+	for i := range seed {
+		seed[i] = byte(i + 1)
+	}
+	if err := g.Seed(seed); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if err := g.Start(); err != nil {
