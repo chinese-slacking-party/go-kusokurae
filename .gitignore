@@ -25,3 +25,6 @@ debug
 
 # Local environment config (see .env.example)
 .env
+
+# Build output of sm/tests/Makefile
+sm/tests/build/
