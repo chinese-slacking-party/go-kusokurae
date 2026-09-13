@@ -5,6 +5,7 @@ package sm
 // timespec_get(). Standard C17 (-std=c17) without GNU extensions is used for
 // cross-platform and cross-language compatibility.
 #cgo CFLAGS: -std=c17 -Wconversion -Wcast-qual
+#include <stdint.h>
 #include "sm.h"
 
 extern void goRandom(int *);
@@ -13,8 +14,37 @@ static inline int cgo_random(void *state) {
 	goRandom(&ret);
 	return ret;
 }
-static inline void set_prng() {
+static inline void set_cgo_prng() {
 	kusokurae_set_prng(&cgo_random);
+}
+
+// Xoshiro256** reference implementation
+// https://prng.di.unimi.it/xoshiro256starstar.c
+static inline uint64_t rotl(const uint64_t x, int k) {
+	return (x << k) | (x >> (64 - k));
+}
+static int xoshiro256starstar(void *state) {
+	uint64_t *s = (uint64_t *)state;
+	const uint64_t result = rotl(s[1] * 5, 7) * 9;
+	const uint64_t t = s[1] << 17;
+
+	s[2] ^= s[0];
+	s[3] ^= s[1];
+	s[1] ^= s[2];
+	s[0] ^= s[3];
+
+	s[2] ^= t;
+
+	s[3] = rotl(s[3], 45);
+
+	// The top 15 bits, which is exactly the [0, KUSOKURAE_RAND_MAX] the engine
+	// asks for. Casting the whole 64-bit result to int would be half negative
+	// and half over the bound, and sample() only guarantees a valid deal for
+	// such a generator, not a uniform one.
+	return (int)(result >> 49);
+}
+static inline void set_prng() {
+	kusokurae_set_prng(&xoshiro256starstar);
 }
 
 extern void goGameStateCB(kusokurae_game_state_t *, int32_t, void *);
@@ -28,6 +58,7 @@ static inline void *get_cgo_cb_bridge_ptr() {
 import "C"
 
 import (
+	cryptorand "crypto/rand"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -323,13 +354,25 @@ func (g *GameState) init(cfg GameConfig, stateFn func(GameStatus)) error {
 	runtime.SetFinalizer(g, func(g *GameState) {
 		delete(callbackMap, g.goStateCallbackNo)
 	})
+
+	var entropy [32]byte
+	cryptorand.Read(entropy[:])
+
 	pret := unsafe.Pointer(g)
 	pcfg := unsafe.Pointer(&cfg)
 	pcbs := unsafe.Pointer(&cbs)
-	return errcode2Go(C.kusokurae_game_init(
+	pent := unsafe.Pointer(&entropy)
+
+	if err := errcode2Go(C.kusokurae_game_init(
 		(*C.kusokurae_game_state_t)(pret),
 		(*C.kusokurae_game_config_t)(pcfg),
 		(*C.kusokurae_game_callbacks_t)(pcbs),
+	)); err != nil {
+		return err
+	}
+	return errcode2Go(C.kusokurae_game_seed(
+		(*C.kusokurae_game_state_t)(pret),
+		(*C.uint8_t)(pent),
 	))
 }
 
