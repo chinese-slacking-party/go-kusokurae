@@ -224,7 +224,7 @@ type GameState struct {
 }
 
 var (
-	nextCBNo    uint64
+	nextCBNo    atomic.Uint64
 	callbackMap map[uint64]func(GameStatus)
 )
 
@@ -347,7 +347,7 @@ func NewGame(cfg GameConfig, stateFn func(GameStatus)) (ret *GameState, err erro
 func (g *GameState) init(cfg GameConfig, stateFn func(GameStatus)) error {
 	var cbNo uint64
 	if stateFn != nil {
-		cbNo = atomic.AddUint64(&nextCBNo, 1)
+		cbNo = nextCBNo.Add(1)
 		callbackMap[cbNo] = stateFn
 	}
 	g.goStateCallbackNo = cbNo
