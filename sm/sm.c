@@ -365,6 +365,7 @@ kusokurae_error_t kusokurae_game_start(kusokurae_game_state_t *self) {
         // hands they land in, so the test widens to cards[0] and cards[1] and
         // the assignment has to start accumulating into both slots.
         if (self->players[i].cards[0].suit == KUSOKURAE_SUIT_OTHER) {
+            // TODO: fill in ghost_holder_index[1] after callers are ready.
             self->ghost_holder_index[0] = i;
         }
     }
