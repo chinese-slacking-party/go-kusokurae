@@ -17,6 +17,7 @@ var ErrRoomPlayerNotFound = errors.New("this player not contained by room")
 var ErrGameAlreadyStarted = errors.New("game already started")
 var ErrNotEnoughPlayers = errors.New("not enough players")
 var ErrNotHost = errors.New("only host can start game")
+var ErrRoomClosed = errors.New("attempted operation on closed room")
 
 type Room struct {
 	ID                  string
@@ -95,10 +96,14 @@ func (r *Room) Game() *Game { return r.game.Load() }
 
 func (r *Room) AddPlayer(player *Player) error {
 	errCh := make(chan error, 1)
-	r.internalCh <- func() {
+	select {
+	case r.internalCh <- func() {
 		errCh <- r.addPlayerInternal(player)
+	}:
+		return <-errCh
+	case <-r.Ctx.Done():
+		return ErrRoomClosed
 	}
-	return <-errCh
 }
 
 func (r *Room) addPlayerInternal(player *Player) error {
@@ -389,14 +394,19 @@ func (r *Room) handleGameEnd() {
 	r.game.Store(nil)
 }
 
-// Destroy 可以从任意 goroutine 调用。
+// Destroy, like AddPlayer and AttachSession, is intended to be called by the
+// user (from outside of the run() goroutine), because run() is the only goroutine
+// to consume messages, and sending messages from inside will lock up itself.
 func (r *Room) Destroy(reason string) {
 	done := make(chan struct{})
-	r.internalCh <- func() {
+	select {
+	case r.internalCh <- func() {
 		r.destroyInternal(reason)
 		close(done)
+	}:
+		<-done
+	case <-r.Ctx.Done():
 	}
-	<-done
 }
 
 // destroyInternal tears the room down: removes it from the repository, terminates any
@@ -435,16 +445,13 @@ func (r *Room) destroyInternal(reason string) {
 			}
 		}
 
-		// 4. Stop the room goroutine.
-		r.cancel()
-
-		// 5. Close game channels (GameFn is gone; no senders left).
+		// 4. Close game channels (GameFn is gone; no senders left).
 		if g := r.game.Load(); g != nil {
 			close(g.CmdCh)
 			close(g.EventCh)
 		}
 
-		// 6. Disconnect remaining sessions (Close cancels their ctx so I/O
+		// 5. Disconnect remaining sessions (Close cancels their ctx so I/O
 		//    goroutines exit; the room is not reading OperatorCh any more, so
 		//    Input selects ctx.Done rather than a closed-channel send).
 		for i := range r.sessions {
@@ -453,13 +460,16 @@ func (r *Room) destroyInternal(reason string) {
 			}
 		}
 
-		// 7. Close player channels.
+		// 6. Close player channels.
 		for _, p := range r.Players {
 			if p != nil {
 				close(p.NoticeCh)
 				close(p.OperatorCh)
 			}
 		}
+
+		// 7. Stop the room goroutine.
+		r.cancel()
 	})
 }
 
@@ -467,15 +477,21 @@ func (r *Room) destroyInternal(reason string) {
 // previous session (if any). Serialized through the room goroutine so the
 // connection state is owned solely by run(). The room selects on the current
 // session's DiscCh only, so a stale session's detach is naturally ignored.
+// If r is closed, nil will be returned.
 func (r *Room) AttachSession(idx int32, s *Session) *Session {
 	result := make(chan *Session, 1)
-	r.internalCh <- func() {
+	select {
+	case r.internalCh <- func() {
 		old := r.sessions[idx]
 		r.sessions[idx] = s
 		r.discChs[idx] = s.DiscCh()
 		result <- old
+	}:
+		return <-result
+	case <-r.Ctx.Done():
+		// TODO: Change function signature to explicitly return ErrRoomClosed
+		return nil
 	}
-	return <-result
 }
 
 func (r *Room) run() {
